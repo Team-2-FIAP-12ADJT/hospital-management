@@ -1,17 +1,23 @@
-# Clinical Record
+# History
 
-Contexto dono do dado clínico produzido em uma consulta, e única superfície de
-leitura do histórico do paciente. Mantém uma réplica read-only da Appointment
-para poder responder consultas sem chamar o contexto Appointment.
+Única superfície de leitura do histórico do paciente. Materializa as Appointments
+a partir dos eventos do [Scheduling](../scheduling/CONTEXT.md) e as expõe via
+GraphQL. **Não é dono de nenhum dado e não recebe escrita de nenhum perfil.**
 
 ## Language
 
-**Clinical Record** (spec: _histórico médico_, _histórico de consultas_):
-O conjunto do dado clínico que um Doctor registra sobre uma Appointment já
-ocorrida — diagnóstico, anotações, prescrição.
-_Avoid_: History, Medical History, Chart, Prontuário, Histórico
+**Appointment Projection** (spec: _histórico de consultas_, _histórico médico_):
+Cópia read-only de uma Appointment, materializada a partir de eventos e nunca
+editada aqui. É sobre ela que toda consulta GraphQL responde.
+_Avoid_: Replica, Cache, Snapshot, Histórico
 
-**Appointment Replica**:
-Cópia read-only de uma Appointment, materializada a partir de eventos do
-contexto Appointment. Nunca é editada aqui.
-_Avoid_: Projection, Cache, Snapshot
+**Past Appointment / Future Appointment** (spec: _atendimentos_, _apenas as futuras_):
+A distinção sai da comparação entre o instante da consulta e o `scheduledAt` da
+projeção. Não existe fluxo que "abra" ou "feche" uma Appointment aqui.
+_Avoid_: Open, Closed, Archived
+
+**Projection Freshness**:
+O instante do último evento aplicado à projeção, devolvido junto de toda resposta
+GraphQL. Existe para que uma projeção atrasada não seja lida como paciente sem
+consultas.
+_Avoid_: Lag, Staleness, Watermark
