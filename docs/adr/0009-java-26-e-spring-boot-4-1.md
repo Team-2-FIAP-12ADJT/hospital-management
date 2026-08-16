@@ -21,8 +21,15 @@ verificadas como disponíveis. Um `mvn` rodado direto na máquina de quem avalia
 falha, e as instruções de execução precisam deixar o caminho Docker explícito
 como o caminho oficial.
 
-Spring Boot 4 reorganizou os módulos e trocou o Jackson: os starters passam a se
-chamar `spring-boot-starter-webmvc`, `spring-boot-starter-kafka` e
+Spring Boot 4 reorganizou os módulos e trocou o Jackson: os starters a usar são
+`spring-boot-starter-webmvc`, `spring-boot-starter-kafka` e
 `spring-boot-starter-flyway`, e o Jackson vive sob o pacote `tools.jackson`
-(Jackson 3), não mais `com.fasterxml.jackson`. Import escrito de memória estará
-errado.
+(Jackson 3), não mais `com.fasterxml.jackson`.
+
+As duas trocas falham de maneiras opostas, e a primeira é a perigosa.
+`spring-boot-starter-web` **continua publicado**, depreciado em favor do
+`-webmvc` e trazendo o mesmo conjunto de dependências — escrever o nome antigo
+resolve, compila e sobe, deixando o módulo fora da convenção sem nenhum sinal.
+Já um import de Jackson escrito de memória quebra a compilação na hora. O nome
+do starter precisa ser conferido no `pom.xml`, porque o build não vai reclamar
+dele.
