@@ -1,0 +1,141 @@
+name: hospital-management
+
+# Um banco por serviço (ADR-0008). Só scheduling e identity produzem evento, e só
+# eles sobem com replicação lógica ligada — sem isso o Debezium não lê o WAL.
+#
+# Nenhum banco publica porta no host: o acesso é pela rede do Compose. As únicas
+# portas publicadas são 8080 (gateway), 8090 (kafbat-ui) e 8025 (mailpit).
+#
+# O PGDATA do Postgres 18 é /var/lib/postgresql/18/docker, e não mais
+# /var/lib/postgresql/data como nas versões anteriores — por isso o volume monta
+# o diretório pai. Montar o caminho antigo cria um volume que nunca recebe dado.
+#
+# Nenhum serviço declara container_name: nome fixo colide com qualquer container
+# homônimo já existente na máquina, e o erro só aparece no `up` de quem avalia.
+# Com o padrão do Compose os nomes ficam prefixados pelo nome do projeto.
+
+x-postgres-common: &postgres-common
+  image: postgres:18-alpine
+  environment: &postgres-env
+    POSTGRES_USER: hospital
+    POSTGRES_PASSWORD: hospital
+  healthcheck:
+    test: ["CMD-SHELL", "pg_isready -U hospital -d $${POSTGRES_DB}"]
+    interval: 5s
+    timeout: 5s
+    retries: 12
+    start_period: 10s
+  restart: unless-stopped
+
+# Replicação lógica: exigida pelo Debezium (ADR-0012), aplicada apenas aos dois
+# bancos que têm outbox.
+x-postgres-logical: &postgres-logical
+  command:
+    - postgres
+    - -c
+    - wal_level=logical
+    - -c
+    - max_wal_senders=4
+    - -c
+    - max_replication_slots=4
+
+services:
+
+  scheduling-db:
+    <<: [*postgres-common, *postgres-logical]
+    environment:
+      <<: *postgres-env
+      POSTGRES_DB: scheduling
+    volumes:
+      - scheduling-db-data:/var/lib/postgresql
+
+  identity-db:
+    <<: [*postgres-common, *postgres-logical]
+    environment:
+      <<: *postgres-env
+      POSTGRES_DB: identity
+    volumes:
+      - identity-db-data:/var/lib/postgresql
+
+  history-db:
+    <<: *postgres-common
+    environment:
+      <<: *postgres-env
+      POSTGRES_DB: history
+    volumes:
+      - history-db-data:/var/lib/postgresql
+
+  notification-db:
+    <<: *postgres-common
+    environment:
+      <<: *postgres-env
+      POSTGRES_DB: notification
+    volumes:
+      - notification-db-data:/var/lib/postgresql
+
+  # Kafka em modo KRaft, sem Zookeeper (ADR-0004). Nó único: o projeto roda na
+  # máquina de quem avalia, então réplica e ISR ficam em 1.
+  kafka:
+    image: apache/kafka:4.1.0
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list > /dev/null 2>&1"]
+      interval: 10s
+      timeout: 10s
+      retries: 12
+      start_period: 20s
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+    restart: unless-stopped
+
+  # Console de tópicos e mensagens. É o que torna o pipeline do ticket 18
+  # verificável a olho, em vez de por log de aplicação.
+  kafbat-ui:
+    image: kafbat/kafka-ui:v1.3.0
+    ports:
+      - "8090:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: hospital
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
+      DYNAMIC_CONFIG_ENABLED: "true"
+    depends_on:
+      kafka:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # Caixa de e-mail local. A UI é para quem avalia; a API HTTP é o que a
+  # collection do Postman usa para extrair o token de ativação (ticket 36).
+  mailpit:
+    image: axllent/mailpit:v1.28
+    ports:
+      - "8025:8025"
+    environment:
+      MP_MAX_MESSAGES: 500
+      MP_SMTP_AUTH_ACCEPT_ANY: "true"
+      MP_SMTP_AUTH_ALLOW_INSECURE: "true"
+    healthcheck:
+      test: ["CMD", "/mailpit", "readyz"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    restart: unless-stopped
+
+volumes:
+  scheduling-db-data:
+  identity-db-data:
+  history-db-data:
+  notification-db-data:
+  kafka-data:
