@@ -1,32 +1,35 @@
 # Identity
 
-Contexto dono das pessoas do sistema e do direito de acesso delas. É a única
-fonte de credencial, papel e contato; os demais contextos referenciam pessoas
-apenas por identificador.
+Contexto dono do direito de acesso: credencial, papel e estado de conta. **Não é
+dono de nenhuma pessoa** — Patient e Doctor pertencem ao
+[Scheduling](../scheduling/CONTEXT.md), e aqui aparecem apenas como o
+identificador que chega nos eventos de cadastro.
 
 ## Language
 
 **User**:
-Conta de acesso ao sistema — credencial e papel. Uma pessoa tem exatamente um
-User, e é o User que autentica, nunca o Patient ou o Doctor.
-_Avoid_: Account, Login, Principal
+Conta de acesso ao sistema — credencial, papel e estado. Compartilha o
+identificador do participante correspondente: o `id` de um User é o mesmo `id` do
+Patient ou do Doctor que o originou.
+_Avoid_: Account, Login, Principal, Person
 
 **Role** (spec: _nível de acesso_):
-O papel que determina o que um User pode fazer: Patient, Doctor ou Nurse.
+O papel que determina o que um User pode fazer: Patient, Doctor ou Nurse. Chega
+no evento de cadastro e nunca é informado pelo cliente.
 _Avoid_: Permission, Profile, Authority, Perfil
 
-**Patient** (spec: _paciente_):
-Pessoa que recebe atendimento. Dona do contato para onde as Notifications vão.
-_Avoid_: Client, Customer
+**Activation Token**:
+Segredo de uso único e prazo limitado, entregue por e-mail, que autoriza a pessoa
+a definir a própria senha. O Identity guarda apenas o hash.
+_Avoid_: Invite, Reset Token, Magic Link
 
-**Doctor** (spec: _médico_):
-Profissional para quem Appointments são marcadas e que produz o dado clínico.
-_Avoid_: Physician, Practitioner, Medic
+**Pending Activation**:
+Estado de um User provisionado a partir do evento de cadastro e ainda sem senha.
+Não autentica.
+_Avoid_: Inactive, Disabled, Draft
 
-**Nurse** (spec: _enfermeiro_):
-Profissional que registra e altera Appointments em nome de um Doctor.
-_Avoid_: Attendant
-
-**Contact**:
-O endereço por onde um Patient recebe Notifications.
-_Avoid_: Address, Email, Contato
+**Seeded Account**:
+User criado pela migração inicial, já ativo e com credencial conhecida. Existe
+para quebrar a circularidade do primeiro cadastro profissional e para que o login
+não dependa da cadeia assíncrona.
+_Avoid_: Demo User, Fixture, Admin

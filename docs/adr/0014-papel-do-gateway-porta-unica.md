@@ -8,7 +8,7 @@ trocando um ponto forte do desenho por outro — demos a ele dois papéis que s�
 ele pode cumprir:
 
 - **Documentação agregada**: serve um Swagger UI único, alimentado pelos
-  `/v3/api-docs` dos quatro serviços, mais o GraphiQL do clinical-record
+  `/v3/api-docs` dos quatro serviços, mais o GraphiQL do `history`
 - **Saúde agregada**: `GET /health/system` consolida o actuator dos serviços e
   das dependências de infraestrutura em uma resposta
 
@@ -30,3 +30,8 @@ compose exec` ou publicar a porta temporariamente, e a stack de treze containers
 passa a ter um único ponto por onde tudo entra: se o gateway não sobe, a API
 inteira fica inalcançável mesmo com todos os serviços saudáveis — e é justamente
 o `GET /health/system` que torna esse diagnóstico imediato.
+
+O primeiro dos dois papéis depende de o `springdoc-openapi` funcionar sob Spring
+Boot 4 e agregar múltiplos `/v3/api-docs`, o que ainda não está confirmado. Se
+não funcionar, o gateway fica reduzido a porta única e saúde agregada, e a
+decisão merece ser reavaliada.
