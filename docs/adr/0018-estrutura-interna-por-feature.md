@@ -41,14 +41,19 @@ O fator de avaliação nomeia modularização, não arquitetura limpa. Esta estr
 
 Pacotes de feature têm uma direção só:
 
-**`appointments` conhece `participants` por interface. `participants` não conhece
-`appointments`.**
+**`appointments` conhece `participants` pelo contrato que `participants` publica.
+`participants` não conhece `appointments`.**
 
 Consequências diretas da regra:
 
-- `appointments` depende de `participants` através de um contrato declarado no
-  pacote de destino — a interface e os tipos que ela expõe. Nada de
-  `PatientRepository` sendo injetado direto em `AppointmentService`.
+- O contrato é o que `participants` expõe deliberadamente: os agregados `Patient`
+  e `Doctor`, e as interfaces de consulta que declarar. `Appointment` mapear
+  `@ManyToOne Patient` está dentro do contrato — é a expressão em JPA da chave
+  estrangeira que o ADR-0015 escolheu manter na mesma transação, e atravessá-la
+  por indireção seria pagar o custo de uma fronteira que aquela decisão optou por
+  não ter. O que fica de fora é o interno: `PatientRepository` injetado em
+  `AppointmentService`, ou qualquer método de escrita de participante chamado a
+  partir de `appointments`. Quem cadastra paciente é `participants`.
 - Nenhum tipo de `appointments` aparece em assinatura, campo ou import de
   `participants`. Cadastrar paciente e cadastrar médico continuam funcionando
   com o pacote de consulta apagado.
@@ -95,6 +100,12 @@ A fronteira entre pacotes é convenção reforçada por teste, não salvaguarda 
 compilação — a mesma natureza que o ADR-0015 atribui à separação por schemas.
 Java só impede o acesso dentro do próprio pacote, e o repositório de
 participantes precisa ser público para o serviço da mesma feature.
+
+Permitir a associação JPA através da fronteira traz junto os custos conhecidos de
+mapear entidade: carregamento preguiçoso fora de transação e consulta em N+1 ao
+montar carga de evento a partir de uma lista de consultas. São custos de
+implementação, não de desenho, e o antídoto é o de sempre — `join fetch` onde a
+leitura é em lote.
 
 Nomear o assunto passa a ser pré-requisito para escrever a primeira classe. É o
 custo de coordenação que a estrutura cobra do trabalho em paralelo, e é também o
