@@ -23,13 +23,25 @@ como o caminho oficial.
 
 Spring Boot 4 reorganizou os módulos e trocou o Jackson: os starters a usar são
 `spring-boot-starter-webmvc`, `spring-boot-starter-kafka` e
-`spring-boot-starter-flyway`, e o Jackson vive sob o pacote `tools.jackson`
-(Jackson 3), não mais `com.fasterxml.jackson`.
+`spring-boot-starter-flyway`, e quem serializa é o Jackson 3, sob o pacote
+`tools.jackson`.
 
-As duas trocas falham de maneiras opostas, e a primeira é a perigosa.
-`spring-boot-starter-web` **continua publicado**, depreciado em favor do
-`-webmvc` e trazendo o mesmo conjunto de dependências — escrever o nome antigo
-resolve, compila e sobe, deixando o módulo fora da convenção sem nenhum sinal.
-Já um import de Jackson escrito de memória quebra a compilação na hora. O nome
-do starter precisa ser conferido no `pom.xml`, porque o build não vai reclamar
-dele.
+**Nenhuma das duas trocas é imposta pelo compilador, e é isso que as torna
+perigosas.**
+
+`spring-boot-starter-web` continua publicado, depreciado em favor do `-webmvc` e
+trazendo o mesmo conjunto de dependências — escrever o nome antigo resolve,
+compila e sobe, deixando o módulo fora da convenção sem nenhum sinal.
+
+O Jackson antigo também não desaparece do classpath. O próprio Jackson 3 depende
+de `com.fasterxml.jackson.core:jackson-annotations`, presente em todos os
+módulos, e o `springdoc-openapi` arrasta o `jackson-databind` 2 inteiro para os
+serviços em que está declarado — que são justamente os que expõem REST e onde os
+DTOs vão ser escritos. Um `import com.fasterxml.jackson.annotation.JsonProperty`
+compila ali sem reclamação, e quem serializa continua sendo o Jackson 3, que pode
+simplesmente ignorar a anotação: o efeito não é erro de build, é campo com nome
+errado no JSON.
+
+As duas convenções — nome do starter e pacote do Jackson — são, portanto, item de
+revisão de código, verificável no `pom.xml` e no bloco de imports. Nenhuma delas
+falha alto.
