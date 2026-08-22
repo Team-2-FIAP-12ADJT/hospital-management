@@ -20,6 +20,32 @@
             <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
             <version>3.1.0</version>
         </dependency>
+
+        <!-- Migração é o único caminho de schema deste serviço. O starter é
+             -flyway, não flyway-core solto: o nome mudou na reorganização de
+             módulos do Boot 4 (ADR-0009). Ele já traz o
+             spring-boot-starter-jdbc — DataSource e HikariCP —, que é todo o
+             acesso a banco que este serviço precisa por enquanto: não há
+             entidade JPA aqui, e não haverá enquanto o identity só provisionar
+             conta a partir de evento. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-flyway</artifactId>
+        </dependency>
+
+        <!-- Desde o Flyway 10 o suporte a cada banco vive em módulo próprio, e
+             sem este artefato a migração falha no arranque com "Unsupported
+             Database: PostgreSQL". A versão vem do BOM do Boot 4.1.0. -->
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-database-postgresql</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.postgresql</groupId>
+            <artifactId>postgresql</artifactId>
+            <scope>runtime</scope>
+        </dependency>
     </dependencies>
 
     <build>
