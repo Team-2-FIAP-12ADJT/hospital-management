@@ -38,6 +38,23 @@ um paciente — já ativas, com CPF e senha fixos documentados no README. O
 identificador é o mesmo nos dois bancos, porque `User.id` e `Patient.id` são a
 mesma chave (ADR-0015).
 
+"O mesmo identificador" só é verificável se ele estiver escrito, e ele atravessa
+dois bancos que migram por caminhos independentes. Os valores ficam fixados aqui:
+
+| Papel | Identificador | Par no `scheduling` |
+|---|---|---|
+| Médico | `00000000-0000-4000-8000-000000000001` | `Doctor` |
+| Enfermeiro | `00000000-0000-4000-8000-000000000002` | nenhum |
+| Paciente | `00000000-0000-4000-8000-000000000003` | `Patient` |
+
+A migração inicial do `scheduling` repete os dois identificadores com par
+literalmente. O enfermeiro não tem par, e isso é correto: ele não é participante
+de consulta e por isso não existe tabela para ele naquele banco.
+
+Divergir aqui **não produz erro**: o login continua funcionando, e é a busca do
+participante pelo `sub` do token que devolve vazio — uma falha que aparece longe
+da causa, num serviço que não é o que errou.
+
 ## Consequences
 
 O login funciona imediatamente após o `docker compose up`, sem depender de nenhum

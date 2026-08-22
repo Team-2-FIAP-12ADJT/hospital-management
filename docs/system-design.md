@@ -768,20 +768,28 @@ projeto próprio já em execução:
 | Java | 26.0.1 | instalado localmente |
 | Spring Boot | 4.1.0 | `maven-metadata.xml` do Maven Central |
 | Maven | 3.9.16 | instalado localmente |
-| `eclipse-temurin` | `26-jdk`, `26-jre` | manifesto do registro |
-| PostgreSQL | `17-alpine` | em uso em projeto próprio |
-| Apache Kafka | `4.3.1` (KRaft) | em uso em projeto próprio |
-| Debezium Connect | `3.6` | em uso em projeto próprio |
-| kafbat-ui | tag `latest` | em uso em projeto próprio — **pinar antes de entregar** |
+| Imagem de build | `maven:3.9-eclipse-temurin-26` | em uso no `Dockerfile` |
+| Imagem de runtime | `eclipse-temurin:26-jre` | em uso no `Dockerfile` |
+| PostgreSQL | `18-alpine` | de pé no `docker-compose.yml`; o banco respondeu `PostgreSQL 18.6` |
+| Apache Kafka | `4.1.0` (KRaft) | de pé no `docker-compose.yml`, cluster online no kafbat-ui |
+| kafbat-ui | `v1.3.0` | de pé no `docker-compose.yml` |
+| Mailpit | `v1.28` | de pé no `docker-compose.yml`; **API HTTP provada ponta a ponta** |
+| `springdoc-openapi` | `3.1.0` (`-starter-webmvc-ui`) | pom pai é o `spring-boot-starter-parent:4.1.0`; agregação de dois serviços num Swagger só, vista no browser |
+| `spring-boot-starter-graphql` | 4.1.0 | existe no Maven Central, assim como `-kafka`, `-flyway` e `-oauth2-resource-server` |
 
-**Não verificado** — precisa ser confirmado no primeiro build; um revisor não
-deve tratar como fato:
+⚠ O `PGDATA` do PostgreSQL 18 é `/var/lib/postgresql/18/docker`, e não mais
+`/var/lib/postgresql/data`. Volume montado no caminho antigo cria um volume que
+nunca recebe dado, e o banco parece funcionar até reiniciar.
+
+⚠ A confirmação do `spring-boot-starter-graphql` é do **nome do artefato**, não
+de que a integração funcione sob Boot 4.
+
+**Não verificado** — precisa ser confirmado quando o componente entrar; um
+revisor não deve tratar como fato:
 
 | Componente | Observação |
 |---|---|
-| `springdoc-openapi` | versão compatível com Spring Boot 4 não confirmada; a agregação de múltiplos `/v3/api-docs` num Swagger único também não |
-| `spring-boot-starter-graphql` | existência e nome do starter sob a reorganização de módulos do Boot 4 não confirmados |
-| Mailpit | tag de imagem a definir e pinar; **API HTTP de leitura de mensagens** a confirmar, pois a collection depende dela para automatizar a ativação |
+| Debezium Connect | `3.6` em uso em projeto próprio; ainda **não** está no `docker-compose.yml` deste projeto |
 | Testcontainers | versão compatível com Boot 4 não confirmada |
 
 **Nomes de starter no Spring Boot 4** — a reorganização de módulos renomeou
