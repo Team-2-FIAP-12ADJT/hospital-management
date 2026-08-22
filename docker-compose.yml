@@ -17,10 +17,10 @@ name: hospital-management
 x-postgres-common: &postgres-common
   image: postgres:18-alpine
   environment: &postgres-env
-    POSTGRES_USER: hospital
-    POSTGRES_PASSWORD: hospital
+    POSTGRES_USER: ${POSTGRES_USER:-hospital}
+    POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-hospital}
   healthcheck:
-    test: ["CMD-SHELL", "pg_isready -U hospital -d $${POSTGRES_DB}"]
+    test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
     interval: 5s
     timeout: 5s
     retries: 12
@@ -106,7 +106,7 @@ services:
   kafbat-ui:
     image: kafbat/kafka-ui:v1.3.0
     ports:
-      - "8090:8080"
+      - "${KAFBAT_UI_PORT:-8090}:8080"
     environment:
       KAFKA_CLUSTERS_0_NAME: hospital
       KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
@@ -121,7 +121,7 @@ services:
   mailpit:
     image: axllent/mailpit:v1.28
     ports:
-      - "8025:8025"
+      - "${MAILPIT_UI_PORT:-8025}:8025"
     environment:
       MP_MAX_MESSAGES: 500
       MP_SMTP_AUTH_ACCEPT_ANY: "true"
