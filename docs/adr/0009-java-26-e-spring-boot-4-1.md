@@ -15,11 +15,12 @@ não existe matriz de compatibilidade a respeitar.
 ## Consequences
 
 Quem avalia provavelmente tem Java 17 ou 21 instalado, então o build **precisa**
-acontecer dentro do Docker, em estágio multi-stage com a imagem pinada
-(`eclipse-temurin:26-jdk` para compilar, `26-jre` para executar) — todas
-verificadas como disponíveis. Um `mvn` rodado direto na máquina de quem avalia
-falha, e as instruções de execução precisam deixar o caminho Docker explícito
-como o caminho oficial.
+acontecer dentro do Docker, em estágio multi-stage com as imagens pinadas:
+`maven:3.9-eclipse-temurin-26` para compilar e `eclipse-temurin:26-jre` para
+executar, ambas em uso no `Dockerfile`. O estágio de compilação não é um JDK
+puro porque também precisa do Maven; a base é a mesma `eclipse-temurin` 26. Um
+`mvn` rodado direto na máquina de quem avalia falha, e as instruções de execução
+precisam deixar o caminho Docker explícito como o caminho oficial.
 
 Spring Boot 4 reorganizou os módulos e trocou o Jackson: os starters a usar são
 `spring-boot-starter-webmvc`, `spring-boot-starter-kafka` e
