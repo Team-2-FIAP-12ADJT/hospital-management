@@ -2,23 +2,17 @@ spring:
   application:
     name: identity
 
-  # Host, banco, usuário e senha são os do docker-compose.yml. O host é o nome
-  # do serviço no Compose porque nenhum Postgres publica porta no host (§B do
-  # desenho): quem alcança o banco é quem está na rede do Compose.
   datasource:
-    url: jdbc:postgresql://identity-db:5432/identity
-    username: hospital
-    password: hospital
+    url: ${IDENTITY_DB_URL:jdbc:postgresql://identity-db:5432/identity}
+    username: ${POSTGRES_USER:hospital}
+    password: ${POSTGRES_PASSWORD:hospital}
 
-  # Migração é o único caminho de schema deste serviço — não há geração de DDL
-  # a partir de código. V1 cria o schema inteiro do identity e semeia as contas
-  # de demonstração (ADR-0016).
   flyway:
     enabled: true
     locations: classpath:db/migration
 
 server:
-  port: 8080
+  port: ${SERVER_PORT:8080}
 
 management:
   endpoints:
