@@ -2,6 +2,15 @@ spring:
   application:
     name: scheduling
 
+  datasource:
+    url: ${SCHEDULING_DB_URL:jdbc:postgresql://scheduling-db:5432/scheduling}
+    username: ${POSTGRES_USER:hospital}
+    password: ${POSTGRES_PASSWORD:hospital}
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+
 server:
   port: 8080
 
