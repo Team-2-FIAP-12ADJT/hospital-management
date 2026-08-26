@@ -2,8 +2,27 @@ spring:
   application:
     name: history
 
+  datasource:
+    url: ${HISTORY_DB_URL:jdbc:postgresql://localhost:5432/history}
+    username: ${POSTGRES_USER:hospital}
+    password: ${POSTGRES_PASSWORD:hospital}
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: none
+
+  graphql:
+    graphiql:
+      enabled: true
+    path: /graphql
+
 server:
-  port: 8080
+  port: ${SERVER_HISTORY_PORT:8095}
 
 management:
   endpoints:

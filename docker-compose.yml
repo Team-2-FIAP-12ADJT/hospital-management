@@ -57,8 +57,12 @@ services:
     volumes:
       - identity-db-data:/var/lib/postgresql
 
+  # Porta no host só neste banco: pgAdmin e o history rodando na máquina.
+  # Os outros Postgres continuam só na rede do Compose.
   history-db:
     <<: *postgres-common
+    ports:
+      - "${HISTORY_DB_PORT:-5432}:5432"
     environment:
       <<: *postgres-env
       POSTGRES_DB: history

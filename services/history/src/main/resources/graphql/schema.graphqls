@@ -1,0 +1,29 @@
+type Query {
+  appointments(patientId: ID, futureOnly: Boolean = false): AppointmentHistory!
+}
+
+type AppointmentHistory {
+  projectionFreshness: String
+  appointments: [AppointmentProjection!]!
+}
+
+type AppointmentProjection {
+  appointmentId: ID!
+  patientId: ID!
+  doctorId: ID!
+  scheduledAt: String!
+  status: AppointmentStatus!
+  fitIn: Boolean!
+  fitInReason: String
+  patientName: String!
+  doctorName: String!
+  doctorSpecialty: String!
+  cancelledAt: String
+  completedAt: String
+}
+
+enum AppointmentStatus {
+  SCHEDULED
+  CANCELLED
+  COMPLETED
+}
