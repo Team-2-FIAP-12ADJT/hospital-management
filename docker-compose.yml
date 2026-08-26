@@ -133,6 +133,22 @@ services:
       retries: 12
     restart: unless-stopped
 
+  identity:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        SERVICE: identity
+    depends_on:
+      identity-db:
+        condition: service_healthy
+    environment:
+      IDENTITY_DB_URL: ${IDENTITY_DB_URL:-jdbc:postgresql://identity-db:5432/identity}
+      POSTGRES_USER: ${POSTGRES_USER:-hospital}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-hospital}
+      SERVER_PORT: ${SERVER_PORT:-8080}
+    restart: unless-stopped
+
 volumes:
   scheduling-db-data:
   identity-db-data:
