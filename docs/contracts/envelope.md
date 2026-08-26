@@ -42,6 +42,12 @@ ticket 18 verificável a olho.
 
 **Milissegundos, UTC, sufixo `Z`.** Não usar precisão maior.
 
+**Sempre três casas decimais, mesmo quando são zero.** `2026-08-17T14:05:03.000Z`, nunca
+`2026-08-17T14:05:03Z`. `Instant.toString()` omite a fração quando o instante cai em
+segundo exato, o que dá largura variável ao campo no fio; produtores formatam com
+`DateTimeFormatterBuilder().appendInstant(3)` (ou equivalente) para fixar as três casas
+em todo caso.
+
 `Instant.toString()` em Java emite até nove dígitos fracionários, e boa parte dos
 consumidores — incluindo qualquer `Date.parse` do lado JavaScript — **trunca em
 milissegundos** ao ler. Publicar nanossegundos cria dois instantes que são iguais para
@@ -123,8 +129,10 @@ Implementada no ticket 14; descrita aqui porque é o que materializa o envelope.
 | `type` | `eventType` |
 | `version` | `eventVersion` |
 | `occurred_at` | `occurredAt` |
-| `payload` | `data` |
+| `envelope` | o envelope completo, com `data` dentro |
 | `topic` | tópico de destino, lido pelo `EventRouter` |
+
+As colunas `id`, `type`, `version`, `occurred_at` repetem o conteúdo do `envelope` porque o roteador Debezium não lê dentro do JSON — o `table.field.event.id` do SMT precisa de coluna, o `table.field.event.key` precisa de `aggregate_id`, e o `route.by.field` precisa de `topic`.
 
 A escrita acontece na mesma transação do agregado, com propagação obrigatória: chamar fora
 de uma transação existente falha alto, em vez de publicar um evento órfão.
