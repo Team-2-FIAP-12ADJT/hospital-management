@@ -59,7 +59,9 @@ um segundo conector Debezium. Em troca, nada sensível trafega por tópico.
 Um token permanece válido até expirar mesmo que a conta seja desativada nesse
 intervalo. É consequência aceita da validação offline — a alternativa seria
 consultar o Identity a cada request, exatamente o acoplamento que o desenho
-evita. O tempo de vida curto é o que limita a janela.
+evita. O tempo de vida curto é o que limita a janela, e o valor escolhido é
+**15 minutos** (`identity.jwt.access-token-ttl: PT15M`): fecha a janela em minutos,
+e ainda cobre uma sessão de teste da API inteira sem expirar no meio dela.
 
 Toda conta criada em tempo de execução precisa ser ativada antes do primeiro
 login. As contas de demonstração escapam disso por serem semeadas já ativas

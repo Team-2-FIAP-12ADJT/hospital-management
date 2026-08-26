@@ -2,6 +2,22 @@ spring:
   application:
     name: gateway
 
+  # Validação offline do JWT emitido pelo identity (ADR-0013). O jwk-set-uri é o
+  # que faz o decoder buscar a chave pública uma vez e validar sozinho depois;
+  # com ele presente o issuer-uri serve só como valor esperado do claim `iss` e
+  # não dispara OIDC discovery — o identity não é provedor OIDC.
+  #
+  # jws-algorithms fixa o algoritmo aceito na configuração: o `alg` declarado
+  # pelo próprio token não é levado em conta.
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          jwk-set-uri: ${IDENTITY_JWKS_URI:http://identity:8080/.well-known/jwks.json}
+          issuer-uri: ${JWT_ISSUER:identity}
+          audiences: ${JWT_AUDIENCE:hospital-management}
+          jws-algorithms: RS256
+
 server:
   port: 8080
 

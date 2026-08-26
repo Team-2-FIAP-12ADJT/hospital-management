@@ -149,6 +149,27 @@ services:
       SERVER_PORT: ${SERVER_PORT:-8080}
     restart: unless-stopped
 
+  # Único serviço que publica porta (ADR-0014). Valida o JWT na borda buscando o
+  # JWKS do identity (ADR-0013).
+  #
+  # depends_on sem condition: service_healthy é deliberado: o gateway busca o
+  # JWKS de forma preguiçosa, na primeira requisição autenticada, então não
+  # precisa do identity de pé no boot. Amarrar por healthcheck acoplaria o boot
+  # dos dois sem ganho.
+  gateway:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        SERVICE: gateway
+    depends_on:
+      - identity
+    ports:
+      - "${GATEWAY_PORT:-8080}:8080"
+    environment:
+      IDENTITY_JWKS_URI: ${IDENTITY_JWKS_URI:-http://identity:8080/.well-known/jwks.json}
+    restart: unless-stopped
+
 volumes:
   scheduling-db-data:
   identity-db-data:

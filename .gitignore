@@ -62,6 +62,13 @@ nbproject/
 nb-configuration.xml
 *.sublime-workspace
 
+# --- Compose local ------------------------------------------------------------
+# O Compose carrega este arquivo automaticamente, sem flag. Ele existe para
+# sobreposição local (publicar a porta de um serviço para depurar, por exemplo),
+# e o ADR-0014 prevê esse uso. Não entra no repositório: o que vale para todos
+# está no docker-compose.yml.
+docker-compose.override.yml
+
 # --- Ferramentas locais de agente --------------------------------------------
 .claude/settings.local.json
 .maestri/
