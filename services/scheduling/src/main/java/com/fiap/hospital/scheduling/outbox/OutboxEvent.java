@@ -3,17 +3,17 @@ package com.fiap.hospital.scheduling.outbox;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
+import jakarta.persistence.PostLoad;
+import jakarta.persistence.PostPersist;
 import jakarta.persistence.Table;
-import org.hibernate.annotations.JdbcTypeCode;
-import org.hibernate.type.SqlTypes;
-
+import jakarta.persistence.Transient;
 import java.time.Instant;
 import java.util.UUID;
+import org.springframework.data.domain.Persistable;
 
 @Entity
-@Table(name = "outbox_events")
-public class OutboxEvent {
-
+@Table(name = "outbox_events", schema = "public")
+public class OutboxEvent implements Persistable<UUID> {
     @Id
     private UUID id;
 
@@ -23,66 +23,86 @@ public class OutboxEvent {
     @Column(name = "aggregate_id", nullable = false)
     private UUID aggregateId;
 
-    @Column(nullable = false, length = 100)
+    @Column(name = "type", nullable = false, length = 80)
     private String type;
 
-    @Column(nullable = false)
-    private int version;
+    @Column(name = "version", nullable = false)
+    private Integer eventVersion;
 
     @Column(name = "occurred_at", nullable = false)
     private Instant occurredAt;
 
-    @JdbcTypeCode(SqlTypes.JSON)
-    @Column(nullable = false, columnDefinition = "jsonb")
-    private String payload;
+    @Column(name = "envelope", nullable = false, columnDefinition = "TEXT")
+    private String envelope;
 
-    @Column(nullable = false, length = 100)
+    @Column(name = "topic", nullable = false, length = 100)
     private String topic;
 
-    protected OutboxEvent() {
+    @Transient
+    private boolean isNew = true;
+
+    protected OutboxEvent() {}
+
+    public static OutboxEvent create(UUID id, String aggregateType, UUID aggregateId,
+                                      String type, Integer eventVersion, Instant occurredAt,
+                                      String envelope, String topic) {
+        OutboxEvent event = new OutboxEvent();
+        event.id = id;
+        event.aggregateType = aggregateType;
+        event.aggregateId = aggregateId;
+        event.type = type;
+        event.eventVersion = eventVersion;
+        event.occurredAt = occurredAt;
+        event.envelope = envelope;
+        event.topic = topic;
+        return event;
     }
 
-    public OutboxEvent(UUID id, String aggregateType, UUID aggregateId, String type, int version,
-                        Instant occurredAt, String payload, String topic) {
-        this.id = id;
-        this.aggregateType = aggregateType;
-        this.aggregateId = aggregateId;
-        this.type = type;
-        this.version = version;
-        this.occurredAt = occurredAt;
-        this.payload = payload;
-        this.topic = topic;
+    public UUID id() {
+        return id;
     }
 
+    @Override
     public UUID getId() {
         return id;
     }
 
-    public String getAggregateType() {
+    @Override
+    public boolean isNew() {
+        return isNew;
+    }
+
+    @PostPersist
+    @PostLoad
+    void markNotNew() {
+        isNew = false;
+    }
+
+    public String aggregateType() {
         return aggregateType;
     }
 
-    public UUID getAggregateId() {
+    public UUID aggregateId() {
         return aggregateId;
     }
 
-    public String getType() {
+    public String type() {
         return type;
     }
 
-    public int getVersion() {
-        return version;
+    public Integer eventVersion() {
+        return eventVersion;
     }
 
-    public Instant getOccurredAt() {
+    public Instant occurredAt() {
         return occurredAt;
     }
 
-    public String getPayload() {
-        return payload;
+    public String envelope() {
+        return envelope;
     }
 
-    public String getTopic() {
+    public String topic() {
         return topic;
     }
 }
