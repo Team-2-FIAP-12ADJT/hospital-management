@@ -5,6 +5,7 @@ import com.fiap.hospital.identity.accounts.domain.User;
 import com.fiap.hospital.identity.config.JwtProperties;
 import com.nimbusds.jose.JOSEException;
 import com.nimbusds.jose.JWSAlgorithm;
+import com.nimbusds.jose.crypto.RSASSAVerifier;
 import com.nimbusds.jose.jwk.JWKSet;
 import com.nimbusds.jose.jwk.KeyUse;
 import com.nimbusds.jose.jwk.RSAKey;
@@ -70,11 +71,16 @@ class AccessTokenIssuerTest {
         assertNotNull(token);
         SignedJWT jwt = SignedJWT.parse(token);
 
+        assertTrue(jwt.verify(new RSASSAVerifier(testKey.toRSAPublicKey())));
+
         assertEquals("RS256", jwt.getHeader().getAlgorithm().getName());
         assertEquals("identity", jwt.getJWTClaimsSet().getIssuer());
         assertEquals(doctorId.toString(), jwt.getJWTClaimsSet().getSubject());
         assertEquals("DOCTOR", jwt.getJWTClaimsSet().getClaim("role"));
-        assertTrue(jwt.getJWTClaimsSet().getAudience().contains("hospital-management"));
+        assertEquals(java.util.List.of("hospital-management"), jwt.getJWTClaimsSet().getAudience());
+
+        Instant expectedIat = Instant.parse("2026-08-23T10:00:00Z");
+        assertEquals(expectedIat.getEpochSecond(), jwt.getJWTClaimsSet().getIssueTime().toInstant().getEpochSecond());
 
         Instant expectedExp = Instant.parse("2026-08-23T10:15:00Z");
         assertEquals(expectedExp.getEpochSecond(), jwt.getJWTClaimsSet().getExpirationTime().toInstant().getEpochSecond());
@@ -116,6 +122,26 @@ class AccessTokenIssuerTest {
         String token = rs384AccessTokenIssuer.issue(principal);
 
         SignedJWT jwt = SignedJWT.parse(token);
+
+        assertTrue(jwt.verify(new RSASSAVerifier(rs384Key.toRSAPublicKey())));
+
         assertEquals("RS384", jwt.getHeader().getAlgorithm().getName());
+    }
+
+    @Test
+    void shouldFailFastOnUnsupportedSigningKeyAlgorithm() throws JOSEException {
+        RSAKey unsupportedKey = new RSAKeyGenerator(2048)
+                .keyUse(KeyUse.SIGNATURE)
+                .algorithm(JWSAlgorithm.HS256)
+                .keyID("unsupported-key-id")
+                .generate();
+
+        JWKSource<SecurityContext> unsupportedJwkSource = new ImmutableJWKSet<>(new JWKSet(unsupportedKey));
+        JwtEncoder unsupportedJwtEncoder = new NimbusJwtEncoder(unsupportedJwkSource);
+
+        IllegalStateException exception = assertThrows(IllegalStateException.class,
+                () -> new AccessTokenIssuer(unsupportedJwtEncoder, jwtProperties, fixedClock, unsupportedKey));
+
+        assertTrue(exception.getMessage().contains("Unsupported JWS algorithm"));
     }
 }
