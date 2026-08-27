@@ -1,0 +1,100 @@
+{
+	"info": {
+		"name": "hospital-management",
+		"description": "Login (ADR-0013) e cadastro de médico (ADR-0015). Aponta para o gateway, porta única (ADR-0014).\n\nO login usa a conta de teste da V2__test_seed_account.sql (papel DOCTOR, senha conhecida) — as contas semeadas pela V1 (Helena Prado etc.) têm hash bcrypt sem senha em texto puro documentada em lugar nenhum do repositório.",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"variable": [
+		{ "key": "baseUrl", "value": "http://localhost:8080", "type": "string" },
+		{ "key": "testDoctorCpf", "value": "99999999999", "type": "string", "description": "Conta de teste da V2__test_seed_account.sql (papel DOCTOR)." },
+		{ "key": "testDoctorPassword", "value": "Doctor123!", "type": "string" },
+		{ "key": "accessToken", "value": "", "type": "string" }
+	],
+	"item": [
+		{
+			"name": "Autenticação",
+			"item": [
+				{
+					"name": "Login (conta de teste)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{ "key": "Accept", "value": "application/json" }
+						],
+						"auth": {
+							"type": "basic",
+							"basic": [
+								{ "key": "username", "value": "{{testDoctorCpf}}", "type": "string" },
+								{ "key": "password", "value": "{{testDoctorPassword}}", "type": "string" }
+							]
+						},
+						"url": {
+							"raw": "{{baseUrl}}/auth/login",
+							"host": [ "{{baseUrl}}" ],
+							"path": [ "auth", "login" ]
+						},
+						"description": "HTTP Basic com CPF como identificador de login (ADR-0013). Devolve o JWT RS256 usado nas rotas protegidas."
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"200 OK\", () => pm.response.to.have.status(200));",
+									"",
+									"const body = pm.response.json();",
+									"pm.test(\"accessToken presente\", () => pm.expect(body.accessToken).to.be.a(\"string\").and.not.empty);",
+									"",
+									"pm.collectionVariables.set(\"accessToken\", body.accessToken);"
+								]
+							}
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "Doctors",
+			"item": [
+				{
+					"name": "Cadastrar médico",
+					"request": {
+						"method": "POST",
+						"header": [
+							{ "key": "Content-Type", "value": "application/json" }
+						],
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{ "key": "token", "value": "{{accessToken}}", "type": "string" }
+							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"taxIdentifier\": \"98765432100\",\n    \"crm\": \"CRM-SP 654321\",\n    \"specialty\": \"Neurologia\",\n    \"name\": \"Dr. João Mendes\",\n    \"email\": \"joao.mendes@hospital.local\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/doctors",
+							"host": [ "{{baseUrl}}" ],
+							"path": [ "api", "doctors" ]
+						},
+						"description": "Exige token de um usuário com papel DOCTOR (decisão do projeto, não documentada nos ADRs). Grava o Doctor e publica DoctorRegistered na mesma transação (ADR-0012)."
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"201 Created\", () => pm.response.to.have.status(201));",
+									"pm.test(\"id presente\", () => pm.expect(pm.response.json().id).to.be.a(\"string\").and.not.empty);"
+								]
+							}
+						}
+					]
+				}
+			]
+		}
+	]
+}
