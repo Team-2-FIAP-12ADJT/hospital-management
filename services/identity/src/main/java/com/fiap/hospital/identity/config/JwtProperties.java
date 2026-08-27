@@ -11,7 +11,6 @@ public class JwtProperties {
 
     private String issuer;
     private String audience;
-    private String algorithm;
     private Duration accessTokenTtl;
 
     public String getIssuer() {
@@ -28,14 +27,6 @@ public class JwtProperties {
 
     public void setAudience(String audience) {
         this.audience = audience;
-    }
-
-    public String getAlgorithm() {
-        return algorithm;
-    }
-
-    public void setAlgorithm(String algorithm) {
-        this.algorithm = algorithm;
     }
 
     public Duration getAccessTokenTtl() {

@@ -28,5 +28,4 @@ identity:
   jwt:
     issuer: identity
     audience: hospital-management
-    algorithm: RS256
     access-token-ttl: PT15M

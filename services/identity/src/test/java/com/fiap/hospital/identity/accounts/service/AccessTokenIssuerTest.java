@@ -50,13 +50,12 @@ class AccessTokenIssuerTest {
         jwtProperties = new JwtProperties();
         jwtProperties.setIssuer("identity");
         jwtProperties.setAudience("hospital-management");
-        jwtProperties.setAlgorithm("RS256");
         jwtProperties.setAccessTokenTtl(Duration.ofMinutes(15));
 
         Instant fixedInstant = Instant.parse("2026-08-23T10:00:00Z");
         fixedClock = Clock.fixed(fixedInstant, ZoneId.of("UTC"));
 
-        accessTokenIssuer = new AccessTokenIssuer(jwtEncoder, jwtProperties, fixedClock);
+        accessTokenIssuer = new AccessTokenIssuer(jwtEncoder, jwtProperties, fixedClock, testKey);
     }
 
     @Test
@@ -93,5 +92,30 @@ class AccessTokenIssuerTest {
 
         SignedJWT jwt = SignedJWT.parse(token);
         assertEquals("test-key-id", jwt.getHeader().getKeyID());
+    }
+
+    @Test
+    void shouldDeriveAlgorithmFromSigningKey() throws Exception {
+        RSAKey rs384Key = new RSAKeyGenerator(2048)
+                .keyUse(KeyUse.SIGNATURE)
+                .algorithm(JWSAlgorithm.RS384)
+                .keyID("rs384-key-id")
+                .generate();
+
+        JWKSource<SecurityContext> rs384JwkSource = new ImmutableJWKSet<>(new JWKSet(rs384Key));
+        JwtEncoder rs384JwtEncoder = new NimbusJwtEncoder(rs384JwkSource);
+        AccessTokenIssuer rs384AccessTokenIssuer =
+                new AccessTokenIssuer(rs384JwtEncoder, jwtProperties, fixedClock, rs384Key);
+
+        User patient = new User(UUID.fromString("00000000-0000-4000-8000-000000000004"),
+                "11144477735", "Ana Souza", "ana.souza@exemplo.com",
+                Role.PATIENT, "ACTIVE",
+                "{bcrypt}$2a$10$OBVnfyEXzi1DbDDVBhboeek2td/O5UDFUsVicvV.u6YTiIgg95.vK");
+
+        AccountPrincipal principal = new AccountPrincipal(patient);
+        String token = rs384AccessTokenIssuer.issue(principal);
+
+        SignedJWT jwt = SignedJWT.parse(token);
+        assertEquals("RS384", jwt.getHeader().getAlgorithm().getName());
     }
 }
