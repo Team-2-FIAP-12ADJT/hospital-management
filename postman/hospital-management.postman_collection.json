@@ -1,13 +1,13 @@
 {
 	"info": {
 		"name": "hospital-management",
-		"description": "Login (ADR-0013) e cadastro de médico (ADR-0015). Aponta para o gateway, porta única (ADR-0014).\n\nO login usa a conta de teste da V2__test_seed_account.sql (papel DOCTOR, senha conhecida) — as contas semeadas pela V1 (Helena Prado etc.) têm hash bcrypt sem senha em texto puro documentada em lugar nenhum do repositório.",
+		"description": "Login (ADR-0013) e cadastro de médico (ADR-0015). Aponta para o gateway, porta única (ADR-0014). Usa a conta semeada pela V1__initial_schema_and_seeded_accounts.sql (Dra. Helena Prado, papel DOCTOR, CPF 39053344705 / medico@123). As três contas semeadas estão documentadas no README.",
 		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
 	},
 	"variable": [
-		{ "key": "baseUrl", "value": "http://localhost:8080", "type": "string" },
-		{ "key": "testDoctorCpf", "value": "99999999999", "type": "string", "description": "Conta de teste da V2__test_seed_account.sql (papel DOCTOR)." },
-		{ "key": "testDoctorPassword", "value": "Doctor123!", "type": "string" },
+		{ "key": "baseUrl", "value": "http://localhost:8080", "type": "string", "description": "gateway, porta única de entrada (ADR-0014). Login e cadastro de médico passam por ele." },
+		{ "key": "testDoctorCpf", "value": "39053344705", "type": "string", "description": "Conta semeada pela V1 (papel DOCTOR, Dra. Helena Prado)." },
+		{ "key": "testDoctorPassword", "value": "medico@123", "type": "string" },
 		{ "key": "accessToken", "value": "", "type": "string" }
 	],
 	"item": [

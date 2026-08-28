@@ -1,5 +1,6 @@
 package com.fiap.hospital.scheduling.participants.service;
 
+import com.fiap.hospital.scheduling.outbox.Aggregate;
 import com.fiap.hospital.scheduling.outbox.OutboxEventWriter;
 import com.fiap.hospital.scheduling.participants.domain.Doctor;
 import com.fiap.hospital.scheduling.participants.repository.DoctorRepository;
@@ -8,15 +9,14 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.time.Instant;
 import java.util.UUID;
 
 @Service
 public class DoctorRegistrationService {
 
-    private static final String AGGREGATE_TYPE = "Doctor";
     private static final String EVENT_TYPE = "DoctorRegistered";
     private static final int EVENT_VERSION = 1;
-    private static final String TOPIC = "hospital.person";
     private static final String ROLE = "DOCTOR";
 
     private final DoctorRepository doctorRepository;
@@ -42,7 +42,7 @@ public class DoctorRegistrationService {
 
         DoctorRegisteredEvent event = new DoctorRegisteredEvent(
                 doctor.getId(), taxIdentifier, crm, specialty, name, email, ROLE);
-        outboxEventWriter.write(AGGREGATE_TYPE, doctor.getId(), EVENT_TYPE, EVENT_VERSION, TOPIC, event);
+        outboxEventWriter.append(Aggregate.PERSON, doctor.getId(), EVENT_TYPE, EVENT_VERSION, Instant.now(), event);
 
         return doctor;
     }
