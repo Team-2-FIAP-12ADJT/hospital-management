@@ -5,3 +5,12 @@ spring:
   jpa:
     hibernate:
       ddl-auto: validate
+
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          jwk-set-uri: http://identity:8080/.well-known/jwks.json
+          issuer-uri: identity
+          audiences: hospital-management
+          jws-algorithms: RS256
