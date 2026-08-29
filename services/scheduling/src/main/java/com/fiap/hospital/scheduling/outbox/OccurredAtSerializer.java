@@ -13,7 +13,11 @@ class OccurredAtSerializer extends ValueSerializer<Instant> {
         new DateTimeFormatterBuilder().appendInstant(3).toFormatter();
 
     @Override
-    public void serialize(Instant value, JsonGenerator gen, SerializationContext ctxt) {
+    public void serialize(
+        Instant value,
+        JsonGenerator gen,
+        SerializationContext ctxt
+    ) {
         gen.writeString(FORMATTER.format(value));
     }
 }
