@@ -24,7 +24,9 @@ public class DoctorController {
 
     private final DoctorRegistrationService doctorRegistrationService;
 
-    public DoctorController(DoctorRegistrationService doctorRegistrationService) {
+    public DoctorController(
+        DoctorRegistrationService doctorRegistrationService
+    ) {
         this.doctorRegistrationService = doctorRegistrationService;
     }
 
@@ -32,19 +34,39 @@ public class DoctorController {
     // papel não vem do corpo da requisição, é decidido no service.
     @PostMapping
     @PreAuthorize("hasRole('DOCTOR')")
-    @Operation(summary = "Cadastra um médico",
-            description = "Grava o Doctor e publica DoctorRegistered na mesma transação (ADR-0012). "
-                    + "Exige papel DOCTOR.")
+    @Operation(
+        summary = "Cadastra um médico",
+        description = "Grava o Doctor e publica DoctorRegistered na mesma transação (ADR-0012). " +
+            "Exige papel DOCTOR."
+    )
     @ApiResponses({
-            @ApiResponse(responseCode = "201", description = "Médico cadastrado"),
-            @ApiResponse(responseCode = "400", description = "Payload inválido"),
-            @ApiResponse(responseCode = "401", description = "Sem token ou token inválido"),
-            @ApiResponse(responseCode = "403", description = "Papel diferente de DOCTOR"),
-            @ApiResponse(responseCode = "409", description = "CPF ou CRM já cadastrado")
+        @ApiResponse(responseCode = "201", description = "Médico cadastrado"),
+        @ApiResponse(responseCode = "400", description = "Payload inválido"),
+        @ApiResponse(
+            responseCode = "401",
+            description = "Sem token ou token inválido"
+        ),
+        @ApiResponse(
+            responseCode = "403",
+            description = "Papel diferente de DOCTOR"
+        ),
+        @ApiResponse(
+            responseCode = "409",
+            description = "CPF ou CRM já cadastrado"
+        ),
     })
-    public ResponseEntity<DoctorResponse> register(@Valid @RequestBody RegisterDoctorRequest request) {
+    public ResponseEntity<DoctorResponse> register(
+        @Valid @RequestBody RegisterDoctorRequest request
+    ) {
         Doctor doctor = doctorRegistrationService.register(
-                request.taxIdentifier(), request.crm(), request.specialty(), request.name(), request.email());
-        return ResponseEntity.status(HttpStatus.CREATED).body(new DoctorResponse(doctor.getId()));
+            request.taxIdentifier(),
+            request.crm(),
+            request.specialty(),
+            request.name(),
+            request.email()
+        );
+        return ResponseEntity.status(HttpStatus.CREATED).body(
+            new DoctorResponse(doctor.getId())
+        );
     }
 }

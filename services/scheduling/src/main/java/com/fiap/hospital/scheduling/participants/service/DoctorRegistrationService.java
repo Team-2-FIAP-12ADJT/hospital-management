@@ -4,6 +4,7 @@ import com.fiap.hospital.scheduling.outbox.Aggregate;
 import com.fiap.hospital.scheduling.outbox.OutboxEventWriter;
 import com.fiap.hospital.scheduling.participants.domain.Doctor;
 import com.fiap.hospital.scheduling.participants.repository.DoctorRepository;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -30,6 +31,10 @@ public class DoctorRegistrationService {
     // Grava Doctor e o outbox na mesma transação (ADR-0012): ou os dois existem, ou nenhum.
     @Transactional
     public Doctor register(String taxIdentifier, String crm, String specialty, String name, String email) {
+        // O par pre-check + catch e deliberado. O pre-check e o caminho comum: sem ele
+        // toda tentativa duplicada chega ao INSERT e o Hibernate registra o CPF em WARN,
+        // o que poe PII no log e deixa a rota autenticada inundar o log por repeticao.
+        // O catch cobre a corrida entre o pre-check e o flush, que so a UNIQUE resolve.
         if (doctorRepository.existsByTaxIdentifier(taxIdentifier)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "tax identifier already registered");
         }
@@ -38,7 +43,11 @@ public class DoctorRegistrationService {
         }
 
         Doctor doctor = new Doctor(UUID.randomUUID(), taxIdentifier, crm, specialty, name, email);
-        doctorRepository.save(doctor);
+        try {
+            doctorRepository.saveAndFlush(doctor);
+        } catch (DataIntegrityViolationException ex) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "tax identifier or crm already registered", ex);
+        }
 
         DoctorRegisteredEvent event = new DoctorRegisteredEvent(
                 doctor.getId(), taxIdentifier, crm, specialty, name, email, ROLE);

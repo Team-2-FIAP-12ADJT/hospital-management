@@ -9,21 +9,39 @@ import tools.jackson.databind.json.JsonMapper;
 
 @Component
 public class OutboxEventWriter {
+
     private final OutboxEventRepository repository;
     private final JsonMapper mapper;
 
-    public OutboxEventWriter(OutboxEventRepository repository, JsonMapper mapper) {
+    public OutboxEventWriter(
+        OutboxEventRepository repository,
+        JsonMapper mapper
+    ) {
         this.repository = repository;
         this.mapper = mapper;
     }
 
     @Transactional(propagation = Propagation.MANDATORY)
-    public UUID append(Aggregate aggregate, UUID aggregateId, String eventType,
-                       int eventVersion, Instant occurredAt, Object data) {
+    public UUID append(
+        Aggregate aggregate,
+        UUID aggregateId,
+        String eventType,
+        int eventVersion,
+        Instant occurredAt,
+        Object data
+    ) {
         UUID eventId = UUID.randomUUID();
-        Instant truncatedOccurredAt = occurredAt.truncatedTo(java.time.temporal.ChronoUnit.MILLIS);
+        Instant truncatedOccurredAt = occurredAt.truncatedTo(
+            java.time.temporal.ChronoUnit.MILLIS
+        );
 
-        EventEnvelope envelope = new EventEnvelope(eventId, eventType, eventVersion, truncatedOccurredAt, data);
+        EventEnvelope envelope = new EventEnvelope(
+            eventId,
+            eventType,
+            eventVersion,
+            truncatedOccurredAt,
+            data
+        );
         String envelopeJson = mapper.writeValueAsString(envelope);
 
         OutboxEvent event = OutboxEvent.create(

@@ -14,6 +14,7 @@ import org.springframework.data.domain.Persistable;
 @Entity
 @Table(name = "outbox_events", schema = "public")
 public class OutboxEvent implements Persistable<UUID> {
+
     @Id
     private UUID id;
 
@@ -43,9 +44,16 @@ public class OutboxEvent implements Persistable<UUID> {
 
     protected OutboxEvent() {}
 
-    public static OutboxEvent create(UUID id, String aggregateType, UUID aggregateId,
-                                      String type, Integer eventVersion, Instant occurredAt,
-                                      String envelope, String topic) {
+    public static OutboxEvent create(
+        UUID id,
+        String aggregateType,
+        UUID aggregateId,
+        String type,
+        Integer eventVersion,
+        Instant occurredAt,
+        String envelope,
+        String topic
+    ) {
         OutboxEvent event = new OutboxEvent();
         event.id = id;
         event.aggregateType = aggregateType;
