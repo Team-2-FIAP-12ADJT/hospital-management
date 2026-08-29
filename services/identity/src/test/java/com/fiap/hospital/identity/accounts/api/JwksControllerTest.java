@@ -10,8 +10,10 @@ import com.nimbusds.jose.jwk.gen.RSAKeyGenerator;
 import org.junit.jupiter.api.Test;
 
 import java.text.ParseException;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -41,16 +43,23 @@ class JwksControllerTest {
         assertFalse(key.toRSAKey().isPrivate());
     }
 
-    @SuppressWarnings("unchecked")
     @Test
-    void serializedResponseCarriesNoPrivateFields() {
+    void carriesNoPrivateFieldAnywhereInTheResponse() {
         Map<String, Object> body = new JwksController(signingKey).jwks();
 
-        List<Map<String, Object>> keys = (List<Map<String, Object>>) body.get("keys");
+        Set<String> everyFieldName = fieldNamesIn(body);
 
-        assertEquals(1, keys.size());
         RSA_PRIVATE_FIELDS.forEach(field ->
-                assertFalse(keys.getFirst().containsKey(field), "campo privado publicado: " + field));
+                assertFalse(everyFieldName.contains(field),
+                        "campo privado publicado em algum ponto da resposta: " + field));
+    }
+
+    @Test
+    void carriesNothingBesidesTheKeySet() {
+        Map<String, Object> body = new JwksController(signingKey).jwks();
+
+        assertEquals(Set.of("keys"), body.keySet(),
+                "a resposta ganhou um campo de topo além de `keys`");
     }
 
     @Test
@@ -60,5 +69,38 @@ class JwksControllerTest {
         JWKSet published = JWKSet.parse(body);
 
         assertEquals(signingKey.getKeyID(), published.getKeys().getFirst().getKeyID());
+    }
+
+    @Test
+    void publishesTheKeyMaterialThatSigns() throws ParseException {
+        Map<String, Object> body = new JwksController(signingKey).jwks();
+
+        JWKSet published = JWKSet.parse(body);
+        RSAKey publishedKey = published.getKeys().getFirst().toRSAKey();
+
+        assertEquals(signingKey.getModulus(), publishedKey.getModulus(),
+                "o módulo publicado não é o da chave que assina");
+        assertEquals(signingKey.getPublicExponent(), publishedKey.getPublicExponent(),
+                "o expoente publicado não é o da chave que assina");
+        assertEquals(signingKey.toPublicJWK(), publishedKey,
+                "a chave publicada difere da pública da chave que assina");
+    }
+
+    private static Set<String> fieldNamesIn(Object node) {
+        Set<String> found = new HashSet<>();
+        collectFieldNames(node, found);
+        return found;
+    }
+
+    private static void collectFieldNames(Object node, Set<String> into) {
+        switch (node) {
+            case Map<?, ?> map -> map.forEach((key, value) -> {
+                into.add(String.valueOf(key));
+                collectFieldNames(value, into);
+            });
+            case List<?> list -> list.forEach(item -> collectFieldNames(item, into));
+            case null, default -> {
+            }
+        }
     }
 }
