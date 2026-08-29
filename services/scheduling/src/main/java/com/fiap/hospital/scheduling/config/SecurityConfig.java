@@ -38,6 +38,8 @@ public class SecurityConfig {
                     .permitAll()
                     .requestMatchers(HttpMethod.POST, "/api/doctors")
                     .authenticated()
+                    .requestMatchers(HttpMethod.POST, "/api/patients")
+                    .permitAll()
                     .anyRequest()
                     .denyAll()
             )
