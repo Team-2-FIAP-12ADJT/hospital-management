@@ -2,6 +2,7 @@ package com.fiap.hospital.scheduling.participants.service;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
@@ -59,5 +60,47 @@ class DoctorRegistrationServiceConflictTest {
             .isEqualTo(HttpStatus.CONFLICT);
 
         verifyNoInteractions(outboxEventWriter);
+    }
+
+    // O defeito que o ApiExceptionHandler tinha era de alcance: sendo
+    // @RestControllerAdvice, ele traduzia qualquer DataIntegrityViolationException do
+    // modulo inteiro em 409, inclusive as de FK e NOT NULL. Aqui a traducao envolve so
+    // o saveAndFlush do Doctor: uma violacao levantada depois dele, ja na escrita do
+    // outbox, tem de propagar como esta e virar 500.
+    @Test
+    void integrityViolationOutsideTheDoctorInsertIsNotTranslatedIntoConflict() {
+        DoctorRegistrationService service = new DoctorRegistrationService(
+            doctorRepository,
+            outboxEventWriter
+        );
+
+        when(doctorRepository.existsByTaxIdentifier("39053344705")).thenReturn(
+            false
+        );
+        when(doctorRepository.existsByCrm("CRM-SP 123456")).thenReturn(false);
+        when(
+            outboxEventWriter.append(
+                any(),
+                any(),
+                any(),
+                anyInt(),
+                any(),
+                any()
+            )
+        ).thenThrow(
+            new DataIntegrityViolationException("outbox_events_topic_not_null")
+        );
+
+        assertThatThrownBy(() ->
+            service.register(
+                "39053344705",
+                "CRM-SP 123456",
+                "Cardiologia",
+                "Dra. Helena Prado",
+                "helena.prado@hospital.local"
+            )
+        )
+            .isInstanceOf(DataIntegrityViolationException.class)
+            .isNotInstanceOf(ResponseStatusException.class);
     }
 }
