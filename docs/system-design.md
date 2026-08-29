@@ -789,7 +789,7 @@ revisor não deve tratar como fato:
 
 | Componente | Observação |
 |---|---|
-| Debezium Connect | `3.6` em uso em projeto próprio; ainda **não** está no `docker-compose.yml` deste projeto |
+| Debezium Connect | `3.6.1.Final` no `quay.io/debezium/connect:3.6.1.Final`, presente no `docker-compose.yml` deste projeto |
 | Testcontainers | versão compatível com Boot 4 não confirmada |
 
 **Nomes de starter no Spring Boot 4** — a reorganização de módulos renomeou
