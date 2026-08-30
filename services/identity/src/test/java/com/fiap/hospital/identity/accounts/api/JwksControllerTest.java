@@ -20,7 +20,8 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class JwksControllerTest {
 
-    private static final List<String> RSA_PRIVATE_FIELDS = List.of("d", "p", "q", "dp", "dq", "qi");
+    private static final List<String> RSA_PRIVATE_FIELDS =
+            List.of("d", "p", "q", "dp", "dq", "qi", "oth");
 
     private final RSAKey signingKey = new RSAKeyGenerator(2048)
             .keyUse(KeyUse.SIGNATURE)
