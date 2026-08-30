@@ -1,6 +1,6 @@
 package com.fiap.hospital.archrule.fixture.config;
 
-import com.fiap.hospital.archrule.fixture.participants.FixtureParticipantContract;
+import com.fiap.hospital.archrule.fixture.participants.contract.FixtureParticipantContract;
 
 /**
  * A violação que sharedPackagesKnowNoFeature espera encontrar.
@@ -8,7 +8,7 @@ import com.fiap.hospital.archrule.fixture.participants.FixtureParticipantContrac
  */
 public class FixtureFeatureAwareConfig {
 
-    private final FixtureParticipantContract forbidden = new FixtureParticipantContract();
+    private FixtureParticipantContract forbidden;
 
     public FixtureParticipantContract forbidden() {
         return forbidden;

@@ -1,6 +1,6 @@
 package com.fiap.hospital.archrule.fixture.appointments;
 
-import com.fiap.hospital.archrule.fixture.participants.FixtureParticipantContract;
+import com.fiap.hospital.archrule.fixture.participants.contract.FixtureParticipantContract;
 
 /**
  * A direção permitida: appointments referenciando o contrato publicado por
@@ -8,7 +8,7 @@ import com.fiap.hospital.archrule.fixture.participants.FixtureParticipantContrac
  */
 public class FixtureAppointmentUsingContract {
 
-    private final FixtureParticipantContract allowed = new FixtureParticipantContract();
+    private FixtureParticipantContract allowed;
 
     public FixtureParticipantContract allowed() {
         return allowed;
