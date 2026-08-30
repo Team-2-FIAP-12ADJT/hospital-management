@@ -101,6 +101,56 @@ services:
       - kafka-data:/var/lib/kafka/data
     restart: unless-stopped
 
+  # Debezium Connect em rede interna. O registrador do conector o habilita
+  # depois que o Kafka fica saudável, e a topologia KRaft coloca 1 réplica.
+  kafka-connect:
+    image: quay.io/debezium/connect:3.6.1.Final
+    environment:
+      BOOTSTRAP_SERVERS: kafka:9092
+      GROUP_ID: debezium-connect
+      CONFIG_STORAGE_TOPIC: connect_configs
+      OFFSET_STORAGE_TOPIC: connect_offsets
+      STATUS_STORAGE_TOPIC: connect_statuses
+      # O entrypoint do Debezium só reconhece um punhado de nomes curtos; fator
+      # de replicação e schema do converter exigem o prefixo CONNECT_, ou a
+      # variável é silenciosamente ignorada e o Connect usa o default (3),
+      # que não cabe no broker único.
+      CONNECT_CONFIG_STORAGE_REPLICATION_FACTOR: "1"
+      CONNECT_OFFSET_STORAGE_REPLICATION_FACTOR: "1"
+      CONNECT_STATUS_STORAGE_REPLICATION_FACTOR: "1"
+      KEY_CONVERTER: org.apache.kafka.connect.json.JsonConverter
+      VALUE_CONVERTER: org.apache.kafka.connect.json.JsonConverter
+      CONNECT_KEY_CONVERTER_SCHEMAS_ENABLE: "false"
+      CONNECT_VALUE_CONVERTER_SCHEMAS_ENABLE: "false"
+      REST_PORT: "8083"
+      ADVERTISED_HOST_NAME: kafka-connect
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8083/connectors >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 25s
+    depends_on:
+      kafka:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # Registrador de conectores de uso único: aplica os JSONs em
+  # infra/debezium/connectors e termina sem reiniciar.
+  connector-registrar:
+    build:
+      context: ./infra/debezium/registrar
+      dockerfile: Dockerfile
+    environment:
+      CONNECT_URL: http://kafka-connect:8083
+      CONNECTORS_DIR: /connectors
+    volumes:
+      - ./infra/debezium/connectors:/connectors:ro
+    depends_on:
+      kafka-connect:
+        condition: service_healthy
+    restart: "no"
+
   # Console de tópicos e mensagens. É o que torna o pipeline do ticket 18
   # verificável a olho, em vez de por log de aplicação.
   kafbat-ui:
