@@ -14,7 +14,7 @@ import static com.tngtech.archunit.library.dependencies.SlicesRuleDefinition.sli
 )
 class DependencyRuleTest {
 
-    // Vazia enquanto os dois pacotes não existem; sem isto o build cairia por ausência de código.
+    // Appointments ainda não existe; sem isto a regra cairia por ausência de código nesse lado.
     @ArchTest
     static final ArchRule participantsDoNotKnowAppointments =
         noClasses()
