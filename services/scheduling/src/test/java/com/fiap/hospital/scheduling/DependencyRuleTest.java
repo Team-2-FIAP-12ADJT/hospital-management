@@ -14,7 +14,7 @@ import static com.tngtech.archunit.library.dependencies.SlicesRuleDefinition.sli
 )
 class DependencyRuleTest {
 
-    // Appointments ainda não existe; sem isto a regra cairia por ausência de código nesse lado.
+    // Mantém a regra executável enquanto uma das features protegidas ainda não tiver classes.
     @ArchTest
     static final ArchRule participantsDoNotKnowAppointments =
         noClasses()
@@ -29,6 +29,7 @@ class DependencyRuleTest {
         noClasses()
             .that().resideInAPackage("..appointments..")
             .should().dependOnClassesThat().resideInAnyPackage(
+                "..participants.api..",
                 "..participants.repository..",
                 "..participants.service.."
             )

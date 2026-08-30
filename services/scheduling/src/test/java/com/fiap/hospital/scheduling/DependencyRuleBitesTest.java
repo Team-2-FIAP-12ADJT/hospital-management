@@ -1,10 +1,12 @@
 package com.fiap.hospital.scheduling;
 
 import com.fiap.hospital.archrule.fixture.appointments.FixtureAppointmentService;
+import com.fiap.hospital.archrule.fixture.appointments.FixtureAppointmentApiClient;
 import com.fiap.hospital.archrule.fixture.appointments.FixtureAppointmentUsingContract;
 import com.fiap.hospital.archrule.fixture.appointments.FixtureAppointmentWriterClient;
 import com.fiap.hospital.archrule.fixture.config.FixtureFeatureAwareConfig;
 import com.fiap.hospital.archrule.fixture.participants.FixtureParticipantContract;
+import com.fiap.hospital.archrule.fixture.participants.api.FixtureParticipantRequest;
 import com.fiap.hospital.archrule.fixture.participants.repository.FixtureParticipantRepository;
 import com.fiap.hospital.archrule.fixture.participants.service.FixtureParticipantService;
 import com.fiap.hospital.scheduling.cyclealpha.FixtureCycleAlpha;
@@ -65,6 +67,20 @@ class DependencyRuleBitesTest {
 
         assertTrue(result.hasViolation(),
             "a regra não enxergou ..appointments.. alcançando ..participants.service..");
+    }
+
+    @Test
+    void reportsAppointmentsReachingParticipantApi() {
+        JavaClasses sabotaged = new ClassFileImporter().importClasses(
+            FixtureAppointmentApiClient.class,
+            FixtureParticipantRequest.class
+        );
+
+        EvaluationResult result =
+            DependencyRuleTest.appointmentsDoNotReachParticipantInternals.evaluate(sabotaged);
+
+        assertTrue(result.hasViolation(),
+            "a regra não enxergou ..appointments.. alcançando ..participants.api..");
     }
 
     @Test
