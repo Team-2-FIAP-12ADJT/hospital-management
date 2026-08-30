@@ -1,0 +1,35 @@
+{
+  "name": "scheduling-outbox-connector",
+  "config": {
+    "connector.class": "io.debezium.connector.postgresql.PostgresConnector",
+    "plugin.name": "pgoutput",
+    "database.hostname": "scheduling-db",
+    "database.port": "5432",
+    "database.user": "hospital",
+    "database.password": "hospital",
+    "database.dbname": "scheduling",
+    "topic.prefix": "scheduling",
+    "slot.name": "scheduling_outbox_slot",
+    "publication.name": "scheduling_outbox_publication",
+    "publication.autocreate.mode": "filtered",
+    "table.include.list": "public.outbox_events",
+
+    "key.converter": "org.apache.kafka.connect.storage.StringConverter",
+
+    "topic.creation.default.replication.factor": "1",
+    "topic.creation.default.partitions": "1",
+    "topic.creation.default.retention.ms": "-1",
+
+    "errors.log.enable": "true",
+    "errors.log.include.messages": "true",
+
+    "transforms": "outbox",
+    "transforms.outbox.type": "io.debezium.transforms.outbox.EventRouter",
+    "transforms.outbox.table.field.event.id": "id",
+    "transforms.outbox.table.field.event.key": "aggregate_id",
+    "transforms.outbox.table.field.event.payload": "envelope",
+    "transforms.outbox.table.expand.json.payload": "true",
+    "transforms.outbox.route.by.field": "topic",
+    "transforms.outbox.route.topic.replacement": "${routedByValue}"
+  }
+}
