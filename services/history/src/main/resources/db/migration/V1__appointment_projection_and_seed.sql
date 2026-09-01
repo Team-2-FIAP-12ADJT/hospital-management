@@ -43,10 +43,9 @@ CREATE TABLE projection_freshness (
 COMMENT ON TABLE projection_freshness IS 'Projection Freshness — último occurredAt aplicado à projeção.';
 
 
--- Ids do médico e do paciente semeados no scheduling/identity (ADR-0016), para
--- o filtro patientId coincidir com o sub do token quando o login existir.
--- O segundo paciente não tem par nos outros bancos: serve só para testar o
--- argumento patientId no GraphQL.
+-- Seed alinhado às contas do identity (ADR-0016).
+-- patient_id = User.id: PATIENT usa o sub; DOCTOR/NURSE passam este id no GraphQL.
+-- doctor_id da consulta é sempre a médica Helena (…000001).
 
 INSERT INTO appointment_projection (
     appointment_id, patient_id, doctor_id,
@@ -54,7 +53,7 @@ INSERT INTO appointment_projection (
     patient_name, doctor_name, doctor_specialty,
     cancelled_at, completed_at
 ) VALUES
-    -- futura, SCHEDULED
+    -- PATIENT …000003 Marcos Vieira
     (
         '10000000-0000-4000-8000-000000000001',
         '00000000-0000-4000-8000-000000000003',
@@ -69,7 +68,6 @@ INSERT INTO appointment_projection (
         null,
         null
     ),
-    -- futura, encaixe
     (
         '10000000-0000-4000-8000-000000000002',
         '00000000-0000-4000-8000-000000000003',
@@ -84,7 +82,6 @@ INSERT INTO appointment_projection (
         null,
         null
     ),
-    -- passada, realizada
     (
         '10000000-0000-4000-8000-000000000003',
         '00000000-0000-4000-8000-000000000003',
@@ -99,7 +96,6 @@ INSERT INTO appointment_projection (
         null,
         '2026-07-10T14:42:00.000Z'
     ),
-    -- passada sem conclusão: permanece SCHEDULED (ADR-0010)
     (
         '10000000-0000-4000-8000-000000000004',
         '00000000-0000-4000-8000-000000000003',
@@ -114,7 +110,6 @@ INSERT INTO appointment_projection (
         null,
         null
     ),
-    -- cancelada
     (
         '10000000-0000-4000-8000-000000000005',
         '00000000-0000-4000-8000-000000000003',
@@ -129,16 +124,200 @@ INSERT INTO appointment_projection (
         '2026-09-04T22:41:17.880Z',
         null
     ),
-    -- outro paciente, para o filtro patientId no Postman
+    -- DOCTOR …000001 Dra. Helena Prado (patient_id = sub dela, para filtro/token)
     (
-        '10000000-0000-4000-8000-000000000006',
-        '00000000-0000-4000-8000-000000000099',
+        '10000000-0000-4000-8000-000000000011',
         '00000000-0000-4000-8000-000000000001',
-        '2026-10-02T11:00:00.000Z',
+        '00000000-0000-4000-8000-000000000001',
+        '2026-10-10T14:00:00.000Z',
         'SCHEDULED',
         false,
         null,
-        'Ana Ribeiro',
+        'Dra. Helena Prado',
+        'Dra. Helena Prado',
+        'Cardiologia',
+        null,
+        null
+    ),
+    (
+        '10000000-0000-4000-8000-000000000012',
+        '00000000-0000-4000-8000-000000000001',
+        '00000000-0000-4000-8000-000000000001',
+        '2026-06-20T09:30:00.000Z',
+        'COMPLETED',
+        false,
+        null,
+        'Dra. Helena Prado',
+        'Dra. Helena Prado',
+        'Cardiologia',
+        null,
+        '2026-06-20T10:05:00.000Z'
+    ),
+    -- NURSE …000002 Enf. Rafael Nunes (patient_id = sub dele, para filtro)
+    (
+        '10000000-0000-4000-8000-000000000021',
+        '00000000-0000-4000-8000-000000000002',
+        '00000000-0000-4000-8000-000000000001',
+        '2026-10-22T11:00:00.000Z',
+        'SCHEDULED',
+        false,
+        null,
+        'Enf. Rafael Nunes',
+        'Dra. Helena Prado',
+        'Cardiologia',
+        null,
+        null
+    ),
+    (
+        '10000000-0000-4000-8000-000000000022',
+        '00000000-0000-4000-8000-000000000002',
+        '00000000-0000-4000-8000-000000000001',
+        '2026-08-12T16:00:00.000Z',
+        'CANCELLED',
+        false,
+        null,
+        'Enf. Rafael Nunes',
+        'Dra. Helena Prado',
+        'Cardiologia',
+        '2026-08-11T18:00:00.000Z',
+        null
+    ),
+    -- futuras extras (SCHEDULED, horário > agora) para futureOnly=true
+    (
+        '10000000-0000-4000-8000-000000000031',
+        '00000000-0000-4000-8000-000000000003',
+        '00000000-0000-4000-8000-000000000001',
+        '2026-11-03T08:00:00.000Z',
+        'SCHEDULED',
+        false,
+        null,
+        'Marcos Vieira',
+        'Dra. Helena Prado',
+        'Cardiologia',
+        null,
+        null
+    ),
+    (
+        '10000000-0000-4000-8000-000000000032',
+        '00000000-0000-4000-8000-000000000003',
+        '00000000-0000-4000-8000-000000000001',
+        '2026-11-18T15:30:00.000Z',
+        'SCHEDULED',
+        false,
+        null,
+        'Marcos Vieira',
+        'Dra. Helena Prado',
+        'Cardiologia',
+        null,
+        null
+    ),
+    (
+        '10000000-0000-4000-8000-000000000033',
+        '00000000-0000-4000-8000-000000000003',
+        '00000000-0000-4000-8000-000000000001',
+        '2026-12-09T10:00:00.000Z',
+        'SCHEDULED',
+        true,
+        'Encaixe de retorno',
+        'Marcos Vieira',
+        'Dra. Helena Prado',
+        'Cardiologia',
+        null,
+        null
+    ),
+    (
+        '10000000-0000-4000-8000-000000000034',
+        '00000000-0000-4000-8000-000000000003',
+        '00000000-0000-4000-8000-000000000001',
+        '2027-01-14T13:00:00.000Z',
+        'SCHEDULED',
+        false,
+        null,
+        'Marcos Vieira',
+        'Dra. Helena Prado',
+        'Cardiologia',
+        null,
+        null
+    ),
+    (
+        '10000000-0000-4000-8000-000000000013',
+        '00000000-0000-4000-8000-000000000001',
+        '00000000-0000-4000-8000-000000000001',
+        '2026-11-05T09:00:00.000Z',
+        'SCHEDULED',
+        false,
+        null,
+        'Dra. Helena Prado',
+        'Dra. Helena Prado',
+        'Cardiologia',
+        null,
+        null
+    ),
+    (
+        '10000000-0000-4000-8000-000000000014',
+        '00000000-0000-4000-8000-000000000001',
+        '00000000-0000-4000-8000-000000000001',
+        '2026-12-01T11:30:00.000Z',
+        'SCHEDULED',
+        false,
+        null,
+        'Dra. Helena Prado',
+        'Dra. Helena Prado',
+        'Cardiologia',
+        null,
+        null
+    ),
+    (
+        '10000000-0000-4000-8000-000000000015',
+        '00000000-0000-4000-8000-000000000001',
+        '00000000-0000-4000-8000-000000000001',
+        '2027-02-08T16:00:00.000Z',
+        'SCHEDULED',
+        false,
+        null,
+        'Dra. Helena Prado',
+        'Dra. Helena Prado',
+        'Cardiologia',
+        null,
+        null
+    ),
+    (
+        '10000000-0000-4000-8000-000000000023',
+        '00000000-0000-4000-8000-000000000002',
+        '00000000-0000-4000-8000-000000000001',
+        '2026-11-12T08:30:00.000Z',
+        'SCHEDULED',
+        false,
+        null,
+        'Enf. Rafael Nunes',
+        'Dra. Helena Prado',
+        'Cardiologia',
+        null,
+        null
+    ),
+    (
+        '10000000-0000-4000-8000-000000000024',
+        '00000000-0000-4000-8000-000000000002',
+        '00000000-0000-4000-8000-000000000001',
+        '2026-12-15T14:00:00.000Z',
+        'SCHEDULED',
+        true,
+        'Encaixe de vacinação',
+        'Enf. Rafael Nunes',
+        'Dra. Helena Prado',
+        'Cardiologia',
+        null,
+        null
+    ),
+    (
+        '10000000-0000-4000-8000-000000000025',
+        '00000000-0000-4000-8000-000000000002',
+        '00000000-0000-4000-8000-000000000001',
+        '2027-01-20T10:00:00.000Z',
+        'SCHEDULED',
+        false,
+        null,
+        'Enf. Rafael Nunes',
         'Dra. Helena Prado',
         'Cardiologia',
         null,

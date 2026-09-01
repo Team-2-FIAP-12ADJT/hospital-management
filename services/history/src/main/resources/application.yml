@@ -3,7 +3,9 @@ spring:
     name: history
 
   datasource:
-    url: ${HISTORY_DB_URL:jdbc:postgresql://localhost:5432/history}
+    url: ${HISTORY_DB_URL:jdbc:postgresql://history-db:5432/history}
+    # local
+    #url: ${HISTORY_DB_URL:jdbc:postgresql://localhost:5432/history}
     username: ${POSTGRES_USER:hospital}
     password: ${POSTGRES_PASSWORD:hospital}
 
@@ -21,8 +23,19 @@ spring:
       enabled: true
     path: /graphql
 
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          jwk-set-uri: ${IDENTITY_JWKS_URI:http://identity:8080/.well-known/jwks.json}
+          #Uso local
+          #jwk-set-uri: ${IDENTITY_JWKS_URI:http://localhost:8081/.well-known/jwks.json}
+          issuer-uri: ${JWT_ISSUER:identity}
+          audiences: ${JWT_AUDIENCE:hospital-management}
+          jws-algorithms: RS256
+
 server:
-  port: ${SERVER_HISTORY_PORT:8095}
+  port: ${SERVER_PORT:8080}
 
 management:
   endpoints:

@@ -1,10 +1,22 @@
 type Query {
-  appointments(patientId: ID, futureOnly: Boolean = false): AppointmentHistory!
+  # PATIENT: ignora patientId e usa o sub do token.
+  # DOCTOR/NURSE: patientId obrigatório (filtro do paciente consultado).
+  appointments(
+    patientId: ID
+    futureOnly: Boolean = false
+    # page começa em 1
+    page: Int!
+    size: Int!
+  ): AppointmentHistory!
 }
 
 type AppointmentHistory {
   projectionFreshness: String
   appointments: [AppointmentProjection!]!
+  page: Int!
+  size: Int!
+  totalElements: Int!
+  totalPages: Int!
 }
 
 type AppointmentProjection {

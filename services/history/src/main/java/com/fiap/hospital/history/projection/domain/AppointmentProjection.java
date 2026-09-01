@@ -55,7 +55,7 @@ public class AppointmentProjection {
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
 
-    protected AppointmentProjection() {
+    public AppointmentProjection() {
     }
 
     public UUID getAppointmentId() {

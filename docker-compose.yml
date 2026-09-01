@@ -61,8 +61,6 @@ services:
   # Os outros Postgres continuam só na rede do Compose.
   history-db:
     <<: *postgres-common
-    ports:
-      - "${HISTORY_DB_PORT:-5432}:5432"
     environment:
       <<: *postgres-env
       POSTGRES_DB: history
@@ -201,6 +199,23 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-hospital}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-hospital}
       SERVER_PORT: ${SERVER_PORT:-8080}
+    restart: unless-stopped
+
+  history:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        SERVICE: history
+    depends_on:
+      history-db:
+        condition: service_healthy
+    environment:
+      HISTORY_DB_URL: ${HISTORY_DB_URL:-jdbc:postgresql://history-db:5432/history}
+      POSTGRES_USER: ${POSTGRES_USER:-hospital}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-hospital}
+      SERVER_HISTORY_PORT: ${SERVER_HISTORY_PORT:-8080}
+      IDENTITY_JWKS_URI: ${IDENTITY_JWKS_URI:-http://identity:8080/.well-known/jwks.json}
     restart: unless-stopped
 
   # Único serviço que publica porta (ADR-0014). Valida o JWT na borda buscando o
