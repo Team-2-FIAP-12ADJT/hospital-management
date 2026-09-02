@@ -200,6 +200,36 @@ services:
       SERVER_PORT: ${SERVER_PORT:-8080}
     restart: unless-stopped
 
+  scheduling:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        SERVICE: scheduling
+    depends_on:
+      scheduling-db:
+        condition: service_healthy
+    environment:
+      SCHEDULING_DB_URL: ${SCHEDULING_DB_URL:-jdbc:postgresql://scheduling-db:5432/scheduling}
+      POSTGRES_USER: ${POSTGRES_USER:-hospital}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-hospital}
+      SERVER_PORT: ${SERVER_PORT:-8080}
+    restart: unless-stopped
+
+  notification:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        SERVICE: notification
+    depends_on:
+      kafka:
+        condition: service_healthy
+    environment:
+      SERVER_PORT: ${SERVER_PORT:-8080}
+      KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:-kafka:9092}
+    restart: unless-stopped
+
   # Único serviço que publica porta (ADR-0014). Valida o JWT na borda buscando o
   # JWKS do identity (ADR-0013).
   #

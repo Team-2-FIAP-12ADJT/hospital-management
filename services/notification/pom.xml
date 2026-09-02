@@ -14,6 +14,17 @@
     <artifactId>notification</artifactId>
     <name>notification</name>
 
+    <dependencies>
+        <!-- Boot 4 modularizou a autoconfiguração: só org.springframework.kafka:spring-kafka
+             no classpath NÃO ativa o KafkaAutoConfiguration (confirmado por execução —
+             @KafkaListener nunca dispara). O starter oficial é quem traz o módulo de
+             autoconfig do Kafka junto com o cliente. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-kafka</artifactId>
+        </dependency>
+    </dependencies>
+
     <build>
         <plugins>
             <plugin>
