@@ -1,5 +1,7 @@
 package com.fiap.hospital.notification.consumer;
 
+import com.fiap.hospital.notification.idempotency.IdempotencyService;
+import java.util.UUID;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -16,9 +18,14 @@ public class SmokeConsumer {
     private static final Logger log = LoggerFactory.getLogger(SmokeConsumer.class);
 
     private final ObjectMapper objectMapper;
+    private final IdempotencyService idempotencyService;
 
-    public SmokeConsumer(ObjectMapper objectMapper) {
+    public SmokeConsumer(
+        ObjectMapper objectMapper,
+        IdempotencyService idempotencyService
+    ) {
         this.objectMapper = objectMapper;
+        this.idempotencyService = idempotencyService;
     }
 
     @KafkaListener(topics = "hospital.person", groupId = "notification-consumer")
@@ -49,6 +56,23 @@ public class SmokeConsumer {
             return;
         }
 
-        log.info("received event eventId={} eventType={}", eventId, eventType);
+        final UUID parsedEventId;
+        try {
+            parsedEventId = UUID.fromString(eventId);
+            if (!parsedEventId.toString().equalsIgnoreCase(eventId)) {
+                throw new IllegalArgumentException("eventId is not canonical");
+            }
+        } catch (IllegalArgumentException e) {
+            log.warn(
+                "discarding message with invalid eventId on hospital.person, "
+                    + "partition={} offset={} value={}",
+                record.partition(), record.offset(), record.value()
+            );
+            return;
+        }
+
+        idempotencyService.process(parsedEventId, () ->
+            log.info("received event eventId={} eventType={}", eventId, eventType)
+        );
     }
 }
