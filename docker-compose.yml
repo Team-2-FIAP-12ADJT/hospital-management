@@ -20,7 +20,7 @@ x-postgres-common: &postgres-common
     POSTGRES_USER: ${POSTGRES_USER:-hospital}
     POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-hospital}
   healthcheck:
-    test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+    test: [ "CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}" ]
     interval: 5s
     timeout: 5s
     retries: 12
@@ -42,7 +42,7 @@ x-postgres-logical: &postgres-logical
 services:
 
   scheduling-db:
-    <<: [*postgres-common, *postgres-logical]
+    <<: [ *postgres-common, *postgres-logical ]
     environment:
       <<: *postgres-env
       POSTGRES_DB: scheduling
@@ -50,7 +50,7 @@ services:
       - scheduling-db-data:/var/lib/postgresql
 
   identity-db:
-    <<: [*postgres-common, *postgres-logical]
+    <<: [ *postgres-common, *postgres-logical ]
     environment:
       <<: *postgres-env
       POSTGRES_DB: identity
@@ -92,7 +92,7 @@ services:
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
     healthcheck:
-      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list > /dev/null 2>&1"]
+      test: [ "CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list > /dev/null 2>&1" ]
       interval: 10s
       timeout: 10s
       retries: 12
@@ -126,7 +126,7 @@ services:
       REST_PORT: "8083"
       ADVERTISED_HOST_NAME: kafka-connect
     healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost:8083/connectors >/dev/null"]
+      test: [ "CMD-SHELL", "curl -fsS http://localhost:8083/connectors >/dev/null" ]
       interval: 10s
       timeout: 5s
       retries: 15
@@ -155,7 +155,7 @@ services:
   # Console de tópicos e mensagens. É o que torna o pipeline do ticket 18
   # verificável a olho, em vez de por log de aplicação.
   kafbat-ui:
-    image: kafbat/kafka-ui:v1.3.0
+    image: kafbat/kafka-ui:v1.5.0
     ports:
       - "${KAFBAT_UI_PORT:-8090}:8080"
     environment:
@@ -178,7 +178,7 @@ services:
       MP_SMTP_AUTH_ACCEPT_ANY: "true"
       MP_SMTP_AUTH_ALLOW_INSECURE: "true"
     healthcheck:
-      test: ["CMD", "/mailpit", "readyz"]
+      test: [ "CMD", "/mailpit", "readyz" ]
       interval: 5s
       timeout: 5s
       retries: 12
@@ -198,6 +198,36 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-hospital}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-hospital}
       SERVER_PORT: ${SERVER_PORT:-8080}
+    restart: unless-stopped
+
+  scheduling:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        SERVICE: scheduling
+    depends_on:
+      scheduling-db:
+        condition: service_healthy
+    environment:
+      SCHEDULING_DB_URL: ${SCHEDULING_DB_URL:-jdbc:postgresql://scheduling-db:5432/scheduling}
+      POSTGRES_USER: ${POSTGRES_USER:-hospital}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-hospital}
+      SERVER_PORT: ${SERVER_PORT:-8080}
+    restart: unless-stopped
+
+  notification:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        SERVICE: notification
+    depends_on:
+      kafka:
+        condition: service_healthy
+    environment:
+      SERVER_PORT: ${SERVER_PORT:-8080}
+      KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:-kafka:9092}
     restart: unless-stopped
 
   # Único serviço que publica porta (ADR-0014). Valida o JWT na borda buscando o
