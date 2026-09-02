@@ -8,6 +8,7 @@ fica assim:
 scheduling/
 ├── participants/
 │   ├── api/
+│   ├── contract/
 │   ├── domain/
 │   ├── repository/
 │   └── service/
@@ -47,7 +48,10 @@ Pacotes de feature têm uma direção só:
 Consequências diretas da regra:
 
 - O contrato é o que `participants` expõe deliberadamente: os agregados `Patient`
-  e `Doctor`, e as interfaces de consulta que declarar. `Appointment` mapear
+  e `Doctor`, e as interfaces de consulta que declarar em `participants.contract`.
+  Um novo tipo em qualquer outro pacote de `participants` não passa a fazer parte
+  do contrato por acidente; a regra de ArchUnit o bloqueia por padrão.
+  `Appointment` mapear
   `@ManyToOne Patient` está dentro do contrato — é a expressão em JPA da chave
   estrangeira que o ADR-0015 escolheu manter na mesma transação, e atravessá-la
   por indireção seria pagar o custo de uma fronteira que aquela decisão optou por
