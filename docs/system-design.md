@@ -772,7 +772,7 @@ projeto próprio já em execução:
 | Imagem de runtime | `eclipse-temurin:26-jre` | em uso no `Dockerfile` |
 | PostgreSQL | `18-alpine` | de pé no `docker-compose.yml`; o banco respondeu `PostgreSQL 18.6` |
 | Apache Kafka | `4.1.0` (KRaft) | de pé no `docker-compose.yml`, cluster online no kafbat-ui |
-| kafbat-ui | `v1.3.0` | de pé no `docker-compose.yml` |
+| kafbat-ui | `v1.5.0` | de pé no `docker-compose.yml` |
 | Mailpit | `v1.28` | de pé no `docker-compose.yml`; **API HTTP provada ponta a ponta** |
 | `springdoc-openapi` | `3.1.0` (`-starter-webmvc-ui`) | pom pai é o `spring-boot-starter-parent:4.1.0`; agregação de dois serviços num Swagger só, vista no browser |
 | `spring-boot-starter-graphql` | 4.1.0 | existe no Maven Central, assim como `-kafka`, `-flyway` e `-oauth2-resource-server` |
