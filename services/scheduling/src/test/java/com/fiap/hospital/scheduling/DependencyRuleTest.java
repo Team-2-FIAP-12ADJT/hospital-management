@@ -1,7 +1,5 @@
 package com.fiap.hospital.scheduling;
 
-import com.fiap.hospital.scheduling.participants.domain.Doctor;
-import com.fiap.hospital.scheduling.participants.domain.Patient;
 import com.tngtech.archunit.core.domain.Dependency;
 import com.tngtech.archunit.core.domain.JavaClass;
 import com.tngtech.archunit.core.importer.ImportOption;
@@ -12,8 +10,9 @@ import com.tngtech.archunit.lang.ArchRule;
 import com.tngtech.archunit.lang.ConditionEvents;
 import com.tngtech.archunit.lang.SimpleConditionEvent;
 
+import java.util.Set;
+
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes;
-import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 import static com.tngtech.archunit.library.dependencies.SlicesRuleDefinition.slices;
 
 @AnalyzeClasses(
@@ -22,23 +21,23 @@ import static com.tngtech.archunit.library.dependencies.SlicesRuleDefinition.sli
 )
 class DependencyRuleTest {
 
-    // Mantém a regra executável enquanto uma das features protegidas ainda não tiver classes.
     @ArchTest
     static final ArchRule participantsDoNotKnowAppointments =
-        noClasses()
+        classes()
             .that().resideInAPackage("..participants..")
-            .should().dependOnClassesThat().resideInAPackage("..appointments..")
+            .should(doNotKnowAppointments())
             .because("cadastrar paciente e médico tem de continuar funcionando "
                 + "com o pacote de consulta apagado")
             .allowEmptyShould(true);
 
     @ArchTest
-    static final ArchRule appointmentsUseOnlyPublishedParticipantContract =
+    static final ArchRule featuresDoNotReachIntoEachOther =
         classes()
-            .that().resideInAPackage("..appointments..")
-            .should(dependOnlyOnPublishedParticipantContract())
-            .because("appointments usa apenas o contrato publicado por participants; "
-                + "quem escreve participante é participants")
+            .that().resideInAPackage("..")
+            .should(featurePackagesAreIsolated())
+            .because("cada feature do serviço deve continuar isolada; "
+                + "o único acesso permitido a outra feature é ao aggregate root "
+                + "ou ao contrato publicado")
             .allowEmptyShould(true);
 
     @ArchTest
@@ -56,18 +55,46 @@ class DependencyRuleTest {
             .matching("com.fiap.hospital.scheduling.(*)..")
             .should().beFreeOfCycles();
 
-    private static ArchCondition<JavaClass> dependOnlyOnPublishedParticipantContract() {
-        return new ArchCondition<>("depender somente do contrato publicado por participants") {
+    private static ArchCondition<JavaClass> doNotKnowAppointments() {
+        return new ArchCondition<>("não depender de appointments em nenhum pacote") {
             @Override
             public void check(JavaClass source, ConditionEvents events) {
                 for (Dependency dependency : source.getDirectDependenciesFromSelf()) {
                     JavaClass target = dependency.getTargetClass();
-                    if (isParticipantType(target) && !isPublishedParticipantContract(target)) {
+                    String targetFeature = topLevelFeature(target.getPackageName());
+                    if (targetFeature != null && targetFeature.equals("appointments")) {
                         events.add(SimpleConditionEvent.violated(
                             dependency,
                             dependency.getDescription()
                         ));
                     }
+                }
+            }
+        };
+    }
+
+    private static ArchCondition<JavaClass> featurePackagesAreIsolated() {
+        return new ArchCondition<>("não depender de outra feature além de domain e contract") {
+            @Override
+            public void check(JavaClass source, ConditionEvents events) {
+                String sourceFeature = topLevelFeature(source.getPackageName());
+                if (sourceFeature == null) {
+                    return;
+                }
+
+                for (Dependency dependency : source.getDirectDependenciesFromSelf()) {
+                    JavaClass target = dependency.getTargetClass();
+                    String targetFeature = topLevelFeature(target.getPackageName());
+                    if (targetFeature == null || sourceFeature.equals(targetFeature)) {
+                        continue;
+                    }
+                    if (isPublishedFeatureContract(target, targetFeature)) {
+                        continue;
+                    }
+                    events.add(SimpleConditionEvent.violated(
+                        dependency,
+                        dependency.getDescription()
+                    ));
                 }
             }
         };
@@ -90,22 +117,65 @@ class DependencyRuleTest {
         };
     }
 
-    private static boolean isParticipantType(JavaClass target) {
-        return hasPackageSegment(target, "participants");
+    private static String topLevelFeature(String packageName) {
+        String root = serviceRoot(packageName);
+        if (root == null) {
+            return null;
+        }
+
+        String localPackage = packageName.substring(root.length());
+        if (localPackage.startsWith(".")) {
+            localPackage = localPackage.substring(1);
+        }
+        if (localPackage.isEmpty()) {
+            return null;
+        }
+
+        String candidate = localPackage.split("\\.", 2)[0];
+        return isSharedPackageSegment(candidate) ? null : candidate;
     }
 
-    private static boolean isPublishedParticipantContract(JavaClass target) {
-        return target.getName().equals(Patient.class.getName())
-            || target.getName().equals(Doctor.class.getName())
-            || hasPackageSegment(target, "participants.contract");
+    private static String serviceRoot(String packageName) {
+        if (packageName.startsWith("com.fiap.hospital.scheduling.")) {
+            return "com.fiap.hospital.scheduling";
+        }
+        if (packageName.startsWith("com.fiap.hospital.archrule.fixture.")) {
+            return "com.fiap.hospital.archrule.fixture";
+        }
+        return null;
     }
 
-    private static boolean hasPackageSegment(JavaClass target, String segment) {
-        String packageName = target.getPackageName();
-        return packageName.equals(segment)
-            || packageName.startsWith(segment + ".")
-            || packageName.endsWith("." + segment)
-            || packageName.contains("." + segment + ".");
+    private static boolean isPublishedFeatureContract(JavaClass target, String targetFeature) {
+        String root = serviceRoot(target.getPackageName());
+        if (root == null) {
+            return false;
+        }
+
+        String localPackage = target.getPackageName().substring(root.length());
+        if (localPackage.startsWith(".")) {
+            localPackage = localPackage.substring(1);
+        }
+        String[] segments = localPackage.split("\\.");
+        if (segments.length < 2 || !segments[0].equals(targetFeature)) {
+            return false;
+        }
+
+        return segments[1].equals("domain") || segments[1].equals("contract");
+    }
+
+    private static boolean isSharedPackageSegment(String segment) {
+        return Set.of(
+            "config",
+            "outbox",
+            "api",
+            "service",
+            "repository",
+            "internal",
+            "domain",
+            "contract",
+            "fixture",
+            "archrule"
+        ).contains(segment);
     }
 
     private static String serviceRootOfSharedClass(JavaClass source) {

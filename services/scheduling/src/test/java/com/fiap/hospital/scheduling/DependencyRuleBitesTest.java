@@ -3,12 +3,16 @@ package com.fiap.hospital.scheduling;
 import com.fiap.hospital.archrule.fixture.appointments.FixtureAppointmentService;
 import com.fiap.hospital.archrule.fixture.appointments.FixtureAppointmentApiClient;
 import com.fiap.hospital.archrule.fixture.appointments.FixtureAppointmentInternalClient;
+import com.fiap.hospital.archrule.fixture.appointments.FixtureAppointmentUsingAvailabilityInternal;
 import com.fiap.hospital.archrule.fixture.appointments.FixtureAppointmentUsingPublishedAggregates;
 import com.fiap.hospital.archrule.fixture.appointments.FixtureAppointmentUsingContract;
 import com.fiap.hospital.archrule.fixture.appointments.FixtureAppointmentWriterClient;
+import com.fiap.hospital.archrule.fixture.appointments.domain.FixtureAppointmentDomain;
 import com.fiap.hospital.archrule.fixture.availability.FixtureAvailabilityContract;
+import com.fiap.hospital.archrule.fixture.availability.internal.FixtureAvailabilityInternal;
 import com.fiap.hospital.archrule.fixture.config.FixtureFeatureAwareConfig;
 import com.fiap.hospital.archrule.fixture.outbox.FixtureFeatureAwareOutbox;
+import com.fiap.hospital.archrule.fixture.participants.FixtureParticipantUsingAppointmentDomain;
 import com.fiap.hospital.archrule.fixture.participants.api.FixtureParticipantRequest;
 import com.fiap.hospital.archrule.fixture.participants.contract.FixtureParticipantContract;
 import com.fiap.hospital.archrule.fixture.participants.internal.FixtureParticipantInternal;
@@ -42,7 +46,7 @@ class DependencyRuleBitesTest {
         JavaClasses sabotaged = new ClassFileImporter().importPackages(FIXTURE_ROOT);
 
         EvaluationResult result =
-            DependencyRuleTest.participantsDoNotKnowAppointments.evaluate(sabotaged);
+            DependencyRuleTest.featuresDoNotReachIntoEachOther.evaluate(sabotaged);
 
         assertTrue(result.hasViolation(),
             "a regra não enxergou ..participants.. dependendo de ..appointments..");
@@ -56,7 +60,7 @@ class DependencyRuleBitesTest {
         );
 
         EvaluationResult result =
-            DependencyRuleTest.appointmentsUseOnlyPublishedParticipantContract.evaluate(sabotaged);
+            DependencyRuleTest.featuresDoNotReachIntoEachOther.evaluate(sabotaged);
 
         assertTrue(result.hasViolation(),
             "a regra não enxergou ..appointments.. alcançando ..participants.repository..");
@@ -70,7 +74,7 @@ class DependencyRuleBitesTest {
         );
 
         EvaluationResult result =
-            DependencyRuleTest.appointmentsUseOnlyPublishedParticipantContract.evaluate(sabotaged);
+            DependencyRuleTest.featuresDoNotReachIntoEachOther.evaluate(sabotaged);
 
         assertTrue(result.hasViolation(),
             "a regra não enxergou ..appointments.. alcançando ..participants.service..");
@@ -84,7 +88,7 @@ class DependencyRuleBitesTest {
         );
 
         EvaluationResult result =
-            DependencyRuleTest.appointmentsUseOnlyPublishedParticipantContract.evaluate(sabotaged);
+            DependencyRuleTest.featuresDoNotReachIntoEachOther.evaluate(sabotaged);
 
         assertTrue(result.hasViolation(),
             "a regra não enxergou ..appointments.. alcançando ..participants.api..");
@@ -98,10 +102,38 @@ class DependencyRuleBitesTest {
         );
 
         EvaluationResult result =
-            DependencyRuleTest.appointmentsUseOnlyPublishedParticipantContract.evaluate(sabotaged);
+            DependencyRuleTest.featuresDoNotReachIntoEachOther.evaluate(sabotaged);
 
         assertTrue(result.hasViolation(),
             "a regra deixou passar uma nova pasta interna de participants");
+    }
+
+    @Test
+    void reportsAppointmentsReachingAvailabilityInternals() {
+        JavaClasses sabotaged = new ClassFileImporter().importClasses(
+            FixtureAppointmentUsingAvailabilityInternal.class,
+            FixtureAvailabilityInternal.class
+        );
+
+        EvaluationResult result =
+            DependencyRuleTest.featuresDoNotReachIntoEachOther.evaluate(sabotaged);
+
+        assertTrue(result.hasViolation(),
+            "a regra deixou passar appointments alcançando availability.internals");
+    }
+
+    @Test
+    void reportsParticipantsReachingAppointmentDomain() {
+        JavaClasses sabotaged = new ClassFileImporter().importClasses(
+            FixtureParticipantUsingAppointmentDomain.class,
+            FixtureAppointmentDomain.class
+        );
+
+        EvaluationResult result =
+            DependencyRuleTest.participantsDoNotKnowAppointments.evaluate(sabotaged);
+
+        assertTrue(result.hasViolation(),
+            "a regra deixou participants depender de appointments.domain");
     }
 
     @Test
@@ -112,7 +144,7 @@ class DependencyRuleBitesTest {
         );
 
         EvaluationResult result =
-            DependencyRuleTest.appointmentsUseOnlyPublishedParticipantContract.evaluate(onlyTheAllowedSide);
+            DependencyRuleTest.featuresDoNotReachIntoEachOther.evaluate(onlyTheAllowedSide);
 
         assertFalse(result.hasViolation(),
             "a regra reprovou appointments usando o contrato publicado por participants");
@@ -127,7 +159,7 @@ class DependencyRuleBitesTest {
         );
 
         EvaluationResult result =
-            DependencyRuleTest.appointmentsUseOnlyPublishedParticipantContract.evaluate(onlyTheAllowedSide);
+            DependencyRuleTest.featuresDoNotReachIntoEachOther.evaluate(onlyTheAllowedSide);
 
         assertFalse(result.hasViolation(),
             "a regra reprovou @ManyToOne para Patient ou Doctor, que são contratos publicados");
