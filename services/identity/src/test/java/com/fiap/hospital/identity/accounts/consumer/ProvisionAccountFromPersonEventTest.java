@@ -1,6 +1,7 @@
 package com.fiap.hospital.identity.accounts.consumer;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatNoException;
 
 import com.fiap.hospital.identity.accounts.domain.Role;
 import com.fiap.hospital.identity.accounts.domain.User;
@@ -94,6 +95,30 @@ class ProvisionAccountFromPersonEventTest {
         assertThat(userRepository.count()).isEqualTo(usersBefore + 1);
         assertThat(userRepository.findById(patientId)).isPresent();
         assertThat(processedEventRepository.existsById(eventId)).isTrue();
+    }
+
+    @Test
+    void cpfDuplicadoNaoInterrompeProvisionamentoNemPerdeIdempotencia() {
+        UUID firstEventId = UUID.randomUUID();
+        UUID firstPatientId = UUID.randomUUID();
+        String taxIdentifier = nextCpf();
+
+        consumer.consume(PersonEventFixtures.patientRegistered(
+            firstEventId, firstPatientId, taxIdentifier
+        ));
+
+        UUID secondEventId = UUID.randomUUID();
+        UUID secondPatientId = UUID.randomUUID();
+
+        assertThatNoException().isThrownBy(() ->
+            consumer.consume(PersonEventFixtures.patientRegistered(
+                secondEventId, secondPatientId, taxIdentifier
+            ))
+        );
+
+        assertThat(userRepository.findById(firstPatientId)).isPresent();
+        assertThat(userRepository.findById(secondPatientId)).isEmpty();
+        assertThat(processedEventRepository.existsById(secondEventId)).isTrue();
     }
 
     @Test
