@@ -1,6 +1,5 @@
 package com.fiap.hospital.notification.consumer;
 
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.fiap.hospital.notification.idempotency.IdempotencyService;
@@ -41,6 +40,6 @@ class SmokeConsumerTest {
 
     private void receive(String value) {
         new SmokeConsumer(JsonMapper.builder().build(), idempotencyService)
-            .receive(new ConsumerRecord<>("hospital.person", 0, 0L, null, value));
+                .receive(new ConsumerRecord<>("hospital.person", 0, 0L, null, value));
     }
 }
