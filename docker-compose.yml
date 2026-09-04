@@ -57,6 +57,8 @@ services:
     volumes:
       - identity-db-data:/var/lib/postgresql
 
+  # Porta no host só neste banco: pgAdmin e o history rodando na máquina.
+  # Os outros Postgres continuam só na rede do Compose.
   history-db:
     <<: *postgres-common
     environment:
@@ -231,6 +233,23 @@ services:
     environment:
       SERVER_PORT: ${SERVER_PORT:-8080}
       KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:-kafka:9092}
+    restart: unless-stopped
+
+  history:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        SERVICE: history
+    depends_on:
+      history-db:
+        condition: service_healthy
+    environment:
+      HISTORY_DB_URL: ${HISTORY_DB_URL:-jdbc:postgresql://history-db:5432/history}
+      POSTGRES_USER: ${POSTGRES_USER:-hospital}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-hospital}
+      SERVER_PORT: ${SERVER_PORT:-8080}
+      IDENTITY_JWKS_URI: ${IDENTITY_JWKS_URI:-http://identity:8080/.well-known/jwks.json}
     restart: unless-stopped
 
   # Único serviço que publica porta (ADR-0014). Valida o JWT na borda buscando o

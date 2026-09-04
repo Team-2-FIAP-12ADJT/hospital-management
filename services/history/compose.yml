@@ -1,0 +1,25 @@
+name: history-local
+
+# Postgres só deste serviço, para subir o history na máquina sem o compose da raiz.
+# Porta no host: 5433 — 5432 costuma estar ocupada. Depois o banco do compose
+# principal continua interno, sem porta publicada.
+services:
+  history-db:
+    image: postgres:18-alpine
+    ports:
+      - "5433:5432"
+    environment:
+      POSTGRES_USER: hospital
+      POSTGRES_PASSWORD: hospital
+      POSTGRES_DB: history
+    volumes:
+      - history-local-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hospital -d history"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+
+volumes:
+  history-local-data:
