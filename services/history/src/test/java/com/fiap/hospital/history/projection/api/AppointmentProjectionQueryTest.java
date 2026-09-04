@@ -1,6 +1,5 @@
 package com.fiap.hospital.history.projection.api;
 
-import com.fiap.hospital.history.projection.domain.AppointmentStatus;
 import com.fiap.hospital.history.projection.service.AppointmentProjectionQueryService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -65,7 +64,8 @@ class AppointmentProjectionQueryTest {
 
     @Test
     void treatsNullPatientIdAsOmitted() {
-        when(queryService.list(isNull(), anyBoolean(), anyInt(), anyInt(), any(Instant.class), eq(PATIENT), eq("PATIENT")))
+        when(queryService.list(isNull(), anyBoolean(), anyInt(), anyInt(), any(Instant.class), eq(PATIENT),
+                eq("PATIENT")))
                 .thenReturn(emptyHistory());
 
         query.appointments(null, false, 1, 10, jwt("PATIENT"));
