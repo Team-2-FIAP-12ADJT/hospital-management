@@ -193,11 +193,14 @@ services:
     depends_on:
       identity-db:
         condition: service_healthy
+      kafka:
+        condition: service_healthy
     environment:
       IDENTITY_DB_URL: ${IDENTITY_DB_URL:-jdbc:postgresql://identity-db:5432/identity}
       POSTGRES_USER: ${POSTGRES_USER:-hospital}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-hospital}
       SERVER_PORT: ${SERVER_PORT:-8080}
+      KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:-kafka:9092}
     restart: unless-stopped
 
   scheduling:
