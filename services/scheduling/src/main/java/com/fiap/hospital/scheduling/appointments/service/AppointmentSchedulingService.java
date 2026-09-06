@@ -2,6 +2,11 @@ package com.fiap.hospital.scheduling.appointments.service;
 
 import com.fiap.hospital.scheduling.appointments.domain.Appointment;
 import com.fiap.hospital.scheduling.appointments.repository.AppointmentRepository;
+import com.fiap.hospital.scheduling.outbox.Aggregate;
+import com.fiap.hospital.scheduling.outbox.OutboxEventWriter;
+import com.fiap.hospital.scheduling.participants.contract.DoctorSummary;
+import com.fiap.hospital.scheduling.participants.contract.ParticipantDirectory;
+import com.fiap.hospital.scheduling.participants.contract.PatientSummary;
 import java.time.Clock;
 import java.time.Instant;
 import java.sql.SQLException;
@@ -16,11 +21,23 @@ import org.springframework.web.server.ResponseStatusException;
 @Service
 public class AppointmentSchedulingService {
 
+    private static final String EVENT_TYPE = "AppointmentScheduled";
+    private static final int EVENT_VERSION = 1;
+
     private final AppointmentRepository appointmentRepository;
+    private final ParticipantDirectory participantDirectory;
+    private final OutboxEventWriter outboxEventWriter;
     private final Clock clock;
 
-    public AppointmentSchedulingService(AppointmentRepository appointmentRepository, Clock clock) {
+    public AppointmentSchedulingService(
+        AppointmentRepository appointmentRepository,
+        ParticipantDirectory participantDirectory,
+        OutboxEventWriter outboxEventWriter,
+        Clock clock
+    ) {
         this.appointmentRepository = appointmentRepository;
+        this.participantDirectory = participantDirectory;
+        this.outboxEventWriter = outboxEventWriter;
         this.clock = clock;
     }
 
@@ -36,10 +53,34 @@ public class AppointmentSchedulingService {
             UUID.randomUUID(), patientId, doctorId, normalizedScheduledAt, fitIn, fitInReason, now, occupied
         );
         try {
-            return appointmentRepository.saveAndFlush(appointment);
+            appointmentRepository.saveAndFlush(appointment);
         } catch (DataIntegrityViolationException ex) {
             throw translateForeignKey(ex);
         }
+        // A FK e a autoridade sobre existencia; so depois do flush o evento pode nascer.
+        PatientSummary patient = participantDirectory.patient(appointment.getPatientId());
+        DoctorSummary doctor = participantDirectory.doctor(appointment.getDoctorId());
+        AppointmentScheduledEvent event = new AppointmentScheduledEvent(
+            appointment.getId(),
+            appointment.getPatientId(),
+            appointment.getDoctorId(),
+            appointment.getScheduledAt(),
+            appointment.getStatus().name(),
+            appointment.isFitIn(),
+            appointment.getFitInReason(),
+            patient.name(),
+            doctor.name(),
+            doctor.specialty()
+        );
+        outboxEventWriter.append(
+            Aggregate.APPOINTMENT,
+            appointment.getId(),
+            EVENT_TYPE,
+            EVENT_VERSION,
+            now,
+            event
+        );
+        return appointment;
     }
 
     @Transactional

@@ -20,6 +20,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import jakarta.persistence.EntityManager;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
@@ -32,6 +33,8 @@ import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.json.JsonMapper;
 
 @SpringBootTest
 @Testcontainers
@@ -58,9 +61,16 @@ class AppointmentSchedulingServiceIntegrationTest {
     @Autowired
     private PlatformTransactionManager transactionManager;
 
+    @Autowired
+    private EntityManager entityManager;
+
+    @Autowired
+    private JsonMapper mapper;
+
     @BeforeEach
     void clean() {
         repository.deleteAll();
+        jdbc.sql("DELETE FROM public.outbox_events").update();
         jdbc.sql("""
             INSERT INTO participants.doctor
                 (id, tax_identifier, crm, specialty, name, email)
@@ -71,6 +81,116 @@ class AppointmentSchedulingServiceIntegrationTest {
             .param("tax", "39053344706")
             .param("crm", "CRM-SP 654322")
             .update();
+    }
+
+    @Test
+    void scheduling_writes_appointment_scheduled_event_to_outbox() {
+        Instant preciseSlot = BASE.plusSeconds(3600).plusNanos(123456789);
+        Appointment appointment = schedule(
+            DOCTOR, preciseSlot, true, "urgent case"
+        );
+
+        assertThat(jdbc.sql("""
+            SELECT count(*) FROM public.outbox_events
+            WHERE aggregate_type = 'appointment'
+              AND aggregate_id = :appointment
+              AND type = 'AppointmentScheduled'
+              AND version = 1
+              AND topic = 'hospital.appointment'
+            """)
+            .param("appointment", appointment.getId())
+            .query(Long.class)
+            .single()).isEqualTo(1L);
+
+        String eventId = jdbc.sql("""
+            SELECT id::text FROM public.outbox_events
+            WHERE aggregate_id = :appointment
+            """)
+            .param("appointment", appointment.getId())
+            .query(String.class)
+            .single();
+        String envelope = jdbc.sql("""
+            SELECT envelope FROM public.outbox_events
+            WHERE aggregate_id = :appointment
+            """)
+            .param("appointment", appointment.getId())
+            .query(String.class)
+            .single();
+        JsonNode root = mapper.readTree(envelope);
+        JsonNode data = root.get("data");
+
+        assertThat(root.get("eventId").asString()).isEqualTo(eventId);
+        assertThat(root.get("eventType").asString()).isEqualTo("AppointmentScheduled");
+        assertThat(root.get("eventVersion").asInt()).isEqualTo(1);
+        assertThat(root.get("occurredAt").asString())
+            .matches("\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z");
+        assertThat(data.get("appointmentId").asString()).isEqualTo(appointment.getId().toString());
+        assertThat(data.get("patientId").asString()).isEqualTo(PATIENT.toString());
+        assertThat(data.get("doctorId").asString()).isEqualTo(DOCTOR.toString());
+        assertThat(data.get("scheduledAt").asString()).isEqualTo("2030-01-01T13:00:00.123Z");
+        assertThat(jdbc.sql("""
+            SELECT scheduled_at FROM scheduling.appointment WHERE id = :appointment
+            """)
+            .param("appointment", appointment.getId())
+            .query(Timestamp.class)
+            .single().toInstant()).isEqualTo(Instant.parse("2030-01-01T13:00:00.123Z"));
+        assertThat(data.get("status").asString()).isEqualTo("SCHEDULED");
+        assertThat(data.get("fitIn").asBoolean()).isTrue();
+        assertThat(data.get("fitInReason").asString()).isEqualTo("urgent case");
+        assertThat(data.get("patientName").asString()).isEqualTo("Marcos Vieira");
+        assertThat(data.get("doctorName").asString()).isEqualTo("Dra. Helena Prado");
+        assertThat(data.get("doctorSpecialty").asString()).isEqualTo("Cardiologia");
+
+        Appointment normal = schedule(
+            DOCTOR, BASE.plusSeconds(7200), false, null
+        );
+        String normalEnvelope = jdbc.sql("""
+            SELECT envelope FROM public.outbox_events WHERE aggregate_id = :appointment
+            """)
+            .param("appointment", normal.getId())
+            .query(String.class)
+            .single();
+        JsonNode normalData = mapper.readTree(normalEnvelope).get("data");
+        assertThat(normalData.get("fitIn").asBoolean()).isFalse();
+        assertThat(normalData.get("fitInReason").isNull()).isTrue();
+        // Segundo exato: e o unico valor que distingue o serializador proprio do default do
+        // Jackson, que omitiria as tres casas e publicaria "2030-01-01T14:00:00Z".
+        assertThat(normalData.get("scheduledAt").asString())
+            .isEqualTo("2030-01-01T14:00:00.000Z");
+    }
+
+    @Test
+    void invalid_patient_returns_bad_request_without_outbox() {
+        UUID invalidPatient = UUID.randomUUID();
+
+        assertThatThrownBy(() ->
+            service.schedule(invalidPatient, DOCTOR, BASE.plusSeconds(3600), false, null)
+        )
+            .isInstanceOf(ResponseStatusException.class)
+            .hasMessageContaining("participant does not exist");
+
+        assertThat(jdbc.sql("SELECT count(*) FROM public.outbox_events")
+            .query(Long.class).single()).isZero();
+    }
+
+    @Test
+    void scheduling_rollback_removes_appointment_and_outbox_after_both_are_written() {
+        TransactionTemplate template = new TransactionTemplate(transactionManager);
+
+        assertThatThrownBy(() -> template.executeWithoutResult(status -> {
+            service.schedule(PATIENT, DOCTOR, BASE.plusSeconds(3600), false, null);
+            entityManager.flush();
+            assertThat(jdbc.sql("SELECT count(*) FROM scheduling.appointment")
+                .query(Long.class).single()).isEqualTo(1L);
+            assertThat(jdbc.sql("SELECT count(*) FROM public.outbox_events")
+                .query(Long.class).single()).isEqualTo(1L);
+            throw new RollbackMarker();
+        })).isInstanceOf(RollbackMarker.class);
+
+        assertThat(jdbc.sql("SELECT count(*) FROM scheduling.appointment")
+            .query(Long.class).single()).isZero();
+        assertThat(jdbc.sql("SELECT count(*) FROM public.outbox_events")
+            .query(Long.class).single()).isZero();
     }
 
     @Test
@@ -100,7 +220,7 @@ class AppointmentSchedulingServiceIntegrationTest {
     }
 
     @Test
-    void rescheduling_excludes_own_row_and_sub_microsecond_times_collide() {
+    void rescheduling_excludes_own_row_and_sub_millisecond_times_collide() {
         Instant slot = BASE.plusSeconds(7200);
         Appointment appointment = schedule(DOCTOR, slot, false, null);
         service.reschedule(appointment.getId(), slot, false, null);
@@ -110,10 +230,13 @@ class AppointmentSchedulingServiceIntegrationTest {
         assertThat(repository.findById(appointment.getId()).orElseThrow().getScheduledAt())
             .isEqualTo(slot.plusSeconds(1));
 
-        Instant precise = BASE.plusSeconds(9000).plusNanos(123456789);
+        // Um microssegundo de diferenca: colide sob normalizacao em milissegundos e NAO
+        // colidiria sob a normalizacao em microssegundos anterior. E o que faz este teste
+        // discriminar a mudanca, em vez de passar dos dois jeitos.
+        Instant precise = BASE.plusSeconds(9000).plusNanos(123456);
         schedule(DOCTOR, precise, false, null);
         assertConflict(() -> schedule(
-            DOCTOR, precise.plusNanos(100), false, null
+            DOCTOR, precise.plusNanos(1_000), false, null
         ));
     }
 

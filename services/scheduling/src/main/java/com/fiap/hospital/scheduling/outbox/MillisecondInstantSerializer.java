@@ -7,7 +7,8 @@ import tools.jackson.core.JsonGenerator;
 import tools.jackson.databind.SerializationContext;
 import tools.jackson.databind.ValueSerializer;
 
-class OccurredAtSerializer extends ValueSerializer<Instant> {
+public class MillisecondInstantSerializer extends ValueSerializer<Instant> {
+    // O default do Jackson omite zeros e pode publicar mais precisao que o contrato permite.
 
     private static final DateTimeFormatter FORMATTER =
         new DateTimeFormatterBuilder().appendInstant(3).toFormatter();
