@@ -22,6 +22,9 @@ import org.springframework.web.server.ResponseStatusException;
 public class AppointmentSchedulingService {
 
     private static final String EVENT_TYPE = "AppointmentScheduled";
+    private static final String RESCHEDULED = "AppointmentRescheduled";
+    private static final String CANCELLED = "AppointmentCancelled";
+    private static final String COMPLETED = "AppointmentCompleted";
     private static final int EVENT_VERSION = 1;
 
     private final AppointmentRepository appointmentRepository;
@@ -99,25 +102,88 @@ public class AppointmentSchedulingService {
         Instant now = clock.instant();
         Instant normalizedScheduledAt = Appointment.normalizeInstant(scheduledAt);
         boolean occupied = appointmentRepository.isOccupied(doctorId, normalizedScheduledAt, id);
+        // Lido antes da transicao: e o campo que permite ao consumidor trocar o lembrete.
+        Instant previousScheduledAt = appointment.getScheduledAt();
         appointment.reschedule(normalizedScheduledAt, fitIn, fitInReason, now, occupied);
-        return appointmentRepository.saveAndFlush(appointment);
+        Appointment saved = appointmentRepository.saveAndFlush(appointment);
+
+        PatientSummary patient = participantDirectory.patient(saved.getPatientId());
+        DoctorSummary doctor = participantDirectory.doctor(saved.getDoctorId());
+        outboxEventWriter.append(
+            Aggregate.APPOINTMENT,
+            saved.getId(),
+            RESCHEDULED,
+            EVENT_VERSION,
+            now,
+            new AppointmentRescheduledEvent(
+                saved.getId(),
+                saved.getPatientId(),
+                saved.getDoctorId(),
+                previousScheduledAt,
+                saved.getScheduledAt(),
+                saved.getStatus().name(),
+                saved.isFitIn(),
+                saved.getFitInReason(),
+                patient.name(),
+                doctor.name(),
+                doctor.specialty()
+            )
+        );
+        return saved;
     }
 
     @Transactional
     public void cancel(UUID id) {
         Appointment appointment = locked(id);
-        appointment.cancel(clock.instant());
+        Instant now = clock.instant();
+        appointment.cancel(now);
         appointmentRepository.saveAndFlush(appointment);
+
+        outboxEventWriter.append(
+            Aggregate.APPOINTMENT,
+            appointment.getId(),
+            CANCELLED,
+            EVENT_VERSION,
+            now,
+            new AppointmentCancelledEvent(
+                appointment.getId(),
+                appointment.getPatientId(),
+                appointment.getDoctorId(),
+                appointment.getScheduledAt(),
+                appointment.getStatus().name(),
+                appointment.getCancelledAt()
+            )
+        );
     }
 
     @Transactional
     public boolean complete(UUID id) {
         Appointment appointment = locked(id);
-        boolean changed = appointment.complete();
-        if (changed) {
-            appointmentRepository.saveAndFlush(appointment);
+        Instant now = clock.instant();
+        boolean changed = appointment.complete(now);
+        // Conclusao repetida nao muda nada, e um evento por chamada faria a projecao
+        // receber o mesmo fato com eventId novo, fora do alcance da idempotencia.
+        if (!changed) {
+            return false;
         }
-        return changed;
+        appointmentRepository.saveAndFlush(appointment);
+
+        outboxEventWriter.append(
+            Aggregate.APPOINTMENT,
+            appointment.getId(),
+            COMPLETED,
+            EVENT_VERSION,
+            now,
+            new AppointmentCompletedEvent(
+                appointment.getId(),
+                appointment.getPatientId(),
+                appointment.getDoctorId(),
+                appointment.getScheduledAt(),
+                appointment.getStatus().name(),
+                appointment.getCompletedAt()
+            )
+        );
+        return true;
     }
 
     private Appointment locked(UUID id) {

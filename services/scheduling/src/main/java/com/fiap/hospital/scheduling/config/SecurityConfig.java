@@ -40,6 +40,16 @@ public class SecurityConfig {
                     .authenticated()
                     .requestMatchers(HttpMethod.POST, "/api/appointments")
                     .authenticated()
+                    // O papel de cada transição fica no @PreAuthorize (ADR-0007);
+                    // aqui a borda só exige token, porque o denyAll abaixo recusa
+                    // qualquer caminho não listado.
+                    .requestMatchers(
+                        HttpMethod.POST,
+                        "/api/appointments/*/reschedule",
+                        "/api/appointments/*/cancel",
+                        "/api/appointments/*/complete"
+                    )
+                    .authenticated()
                     .requestMatchers(HttpMethod.POST, "/api/patients")
                     .permitAll()
                     .anyRequest()
