@@ -32,6 +32,7 @@ public class SecurityConfig {
                         "/swagger-ui/**",
                         "/swagger-ui.html",
                         "/auth/login",
+                        "/auth/activate",
                         "/.well-known/jwks.json",
                         "/graphiql",
                         "/graphiql/**"

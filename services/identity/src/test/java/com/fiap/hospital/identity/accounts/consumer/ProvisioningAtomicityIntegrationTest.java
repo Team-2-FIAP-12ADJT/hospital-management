@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.fiap.hospital.identity.accounts.domain.ActivationToken;
+import com.fiap.hospital.identity.accounts.domain.ActivationTokenHash;
 import com.fiap.hospital.identity.accounts.domain.Role;
 import com.fiap.hospital.identity.accounts.domain.User;
 import com.fiap.hospital.identity.accounts.idempotency.IdempotencyService;
@@ -20,7 +21,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.testcontainers.junit.jupiter.Container;
@@ -51,9 +51,6 @@ class ProvisioningAtomicityIntegrationTest {
     private OutboxEventRepository outboxEventRepository;
 
     @Autowired
-    private PasswordEncoder passwordEncoder;
-
-    @Autowired
     private PlatformTransactionManager transactionManager;
 
     @Autowired
@@ -72,7 +69,7 @@ class ProvisioningAtomicityIntegrationTest {
                 Role.PATIENT, "PENDING_ACTIVATION", null
             ));
             activationTokenRepository.save(new ActivationToken(
-                UUID.randomUUID(), userId, passwordEncoder.encode("token"),
+                UUID.randomUUID(), userId, ActivationTokenHash.of("token"),
                 now.plus(24, ChronoUnit.HOURS), now
             ));
             outboxEventWriter.append(

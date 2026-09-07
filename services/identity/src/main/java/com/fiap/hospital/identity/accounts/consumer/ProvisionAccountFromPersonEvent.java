@@ -1,21 +1,14 @@
 package com.fiap.hospital.identity.accounts.consumer;
 
-import com.fiap.hospital.identity.accounts.domain.User;
-import com.fiap.hospital.identity.accounts.domain.ActivationToken;
 import com.fiap.hospital.identity.accounts.idempotency.IdempotencyService;
-import com.fiap.hospital.identity.accounts.repository.ActivationTokenRepository;
 import com.fiap.hospital.identity.accounts.repository.UserRepository;
-import com.fiap.hospital.identity.outbox.Aggregate;
 import com.fiap.hospital.identity.outbox.OccurredAtSerializer;
-import com.fiap.hospital.identity.outbox.OutboxEventWriter;
-import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
-import java.time.temporal.ChronoUnit;
 import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import tools.jackson.databind.annotation.JsonSerialize;
 
@@ -25,28 +18,20 @@ class ProvisionAccountFromPersonEvent {
     private static final Logger log = LoggerFactory.getLogger(ProvisionAccountFromPersonEvent.class);
 
     static final String PENDING_ACTIVATION = "PENDING_ACTIVATION";
+    static final Duration ACTIVATION_TTL = Duration.ofHours(24);
 
     private final IdempotencyService idempotencyService;
     private final UserRepository userRepository;
-    private final ActivationTokenRepository activationTokenRepository;
-    private final OutboxEventWriter outboxEventWriter;
-    private final PasswordEncoder passwordEncoder;
-    private final Clock clock;
+    private final PersistProvisionedAccount persistProvisionedAccount;
 
     ProvisionAccountFromPersonEvent(
         IdempotencyService idempotencyService,
         UserRepository userRepository,
-        ActivationTokenRepository activationTokenRepository,
-        OutboxEventWriter outboxEventWriter,
-        PasswordEncoder passwordEncoder,
-        Clock clock
+        PersistProvisionedAccount persistProvisionedAccount
     ) {
         this.idempotencyService = idempotencyService;
         this.userRepository = userRepository;
-        this.activationTokenRepository = activationTokenRepository;
-        this.outboxEventWriter = outboxEventWriter;
-        this.passwordEncoder = passwordEncoder;
-        this.clock = clock;
+        this.persistProvisionedAccount = persistProvisionedAccount;
     }
 
     void provision(PersonRegistration registration) {
@@ -62,37 +47,16 @@ class ProvisionAccountFromPersonEvent {
                 );
                 return;
             }
-            User user = userRepository.save(new User(
-                registration.personId(),
-                registration.taxIdentifier(),
-                registration.name(),
-                registration.email(),
-                registration.role(),
-                PENDING_ACTIVATION,
-                null
-            ));
-
-            Instant now = Instant.now(clock).truncatedTo(ChronoUnit.MILLIS);
-            Instant expiresAt = now.plus(Duration.ofHours(24));
-            String activationToken = UUID.randomUUID().toString();
-            activationTokenRepository.save(new ActivationToken(
-                UUID.randomUUID(),
-                user.getId(),
-                passwordEncoder.encode(activationToken),
-                expiresAt,
-                now
-            ));
-            outboxEventWriter.append(
-                Aggregate.ACCOUNT,
-                user.getId(),
-                "UserActivationRequested",
-                1,
-                now,
-                new UserActivationRequestedData(
-                    user.getId(), user.getName(), user.getEmail(),
-                    user.getRole().name(), activationToken, expiresAt
-                )
-            );
+            try {
+                persistProvisionedAccount.persist(registration);
+            } catch (DataIntegrityViolationException ex) {
+                log.warn(
+                    "dropping account provisioning for eventId={} personId={} due to unique constraint ({})",
+                    registration.eventId(),
+                    registration.personId(),
+                    ex.getClass().getSimpleName()
+                );
+            }
         });
     }
 
