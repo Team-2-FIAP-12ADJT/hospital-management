@@ -168,7 +168,8 @@ public class Appointment implements Persistable<UUID> {
     }
 
     private static Instant normalize(Instant value) {
-        return value.truncatedTo(ChronoUnit.MICROS);
+        // O contrato do evento fixa tres casas; guardar micros publicaria um instante diferente.
+        return value.truncatedTo(ChronoUnit.MILLIS);
     }
 
     @Override

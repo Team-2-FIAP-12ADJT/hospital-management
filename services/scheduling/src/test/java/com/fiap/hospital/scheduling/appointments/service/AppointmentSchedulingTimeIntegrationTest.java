@@ -65,7 +65,7 @@ class AppointmentSchedulingTimeIntegrationTest {
         Appointment appointment = service.schedule(
             PATIENT, DOCTOR, Instant.parse("2030-01-01T16:00:00Z"), false, null
         );
-        Instant cancelledAt = Instant.parse("2030-01-01T15:30:00.654321Z");
+        Instant cancelledAt = Instant.parse("2030-01-01T15:30:00.654Z");
         clock.set(cancelledAt);
 
         service.cancel(appointment.getId());

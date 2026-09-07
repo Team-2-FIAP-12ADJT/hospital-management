@@ -18,14 +18,14 @@ class AppointmentTest {
 
         assertThat(appointment.getStatus()).isEqualTo(AppointmentStatus.SCHEDULED);
         assertThat(appointment.getScheduledAt())
-            .isEqualTo(Instant.parse("2026-09-05T23:00:00.999999Z"));
+            .isEqualTo(Instant.parse("2026-09-05T23:00:00.999Z"));
     }
 
     @Test
     void schedule_rejects_past_and_occupied_normal_appointment() {
         assertThatThrownBy(() -> Appointment.schedule(
             UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
-            NOW.minusNanos(1_000), false, null, NOW, false
+            NOW.minusMillis(1), false, null, NOW, false
         )).isInstanceOf(IllegalArgumentException.class);
 
         assertThatThrownBy(() -> schedule(false, null, true))
@@ -64,7 +64,7 @@ class AppointmentTest {
         appointment.reschedule(FUTURE.plusSeconds(1), false, null, NOW, false);
         appointment.cancel(NOW);
         assertThat(appointment.getCancelledAt())
-            .isEqualTo(Instant.parse("2026-09-05T22:00:00.123456Z"));
+            .isEqualTo(Instant.parse("2026-09-05T22:00:00.123Z"));
         assertThatThrownBy(() -> appointment.reschedule(FUTURE, false, null, NOW, false))
             .isInstanceOf(IllegalStateException.class);
         assertThatThrownBy(appointment::complete)
@@ -108,20 +108,20 @@ class AppointmentTest {
 
         Appointment minimumFuture = Appointment.schedule(
             UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
-            NOW.plusNanos(1_000), false, null, NOW, false
+            NOW.plusMillis(1), false, null, NOW, false
         );
         assertThat(minimumFuture.getStatus()).isEqualTo(AppointmentStatus.SCHEDULED);
 
         // Cancelar na iminencia do inicio e permitido (ADR-0010: nao ha janela minima):
-        // um microssegundo antes a consulta ainda nao comecou.
+        // um milissegundo antes a consulta ainda nao comecou.
         minimumFuture.cancel(NOW);
         assertThat(minimumFuture.getStatus()).isEqualTo(AppointmentStatus.CANCELLED);
 
-        // Remarcar para o proximo microssegundo tambem: nao ha antecedencia minima.
-        Appointment nextMicrosecond = schedule(false, null, false);
-        nextMicrosecond.reschedule(NOW.plusNanos(1_000), false, null, NOW, false);
-        assertThat(nextMicrosecond.getScheduledAt())
-            .isEqualTo(Instant.parse("2026-09-05T22:00:00.123457Z"));
+        // Remarcar para o proximo milissegundo tambem: nao ha antecedencia minima.
+        Appointment nextMillisecond = schedule(false, null, false);
+        nextMillisecond.reschedule(NOW.plusMillis(1), false, null, NOW, false);
+        assertThat(nextMillisecond.getScheduledAt())
+            .isEqualTo(Instant.parse("2026-09-05T22:00:00.124Z"));
     }
 
     @Test
@@ -151,7 +151,7 @@ class AppointmentTest {
         ).isInstanceOf(IllegalArgumentException.class);
 
         assertThat(appointment.getScheduledAt())
-            .isEqualTo(Instant.parse("2026-09-05T23:00:00.999999Z"));
+            .isEqualTo(Instant.parse("2026-09-05T23:00:00.999Z"));
         assertThat(appointment.getStatus()).isEqualTo(AppointmentStatus.SCHEDULED);
         assertThat(appointment.isFitIn()).isFalse();
         assertThat(appointment.getFitInReason()).isNull();

@@ -9,6 +9,8 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.fiap.hospital.scheduling.appointments.repository.AppointmentRepository;
+import com.fiap.hospital.scheduling.outbox.OutboxEventWriter;
+import com.fiap.hospital.scheduling.participants.contract.ParticipantDirectory;
 import java.sql.SQLException;
 import java.time.Clock;
 import java.time.Instant;
@@ -65,6 +67,8 @@ class AppointmentSchedulingServiceForeignKeyTest {
 
         AppointmentSchedulingService service = new AppointmentSchedulingService(
             repository,
+            mock(ParticipantDirectory.class),
+            mock(OutboxEventWriter.class),
             Clock.fixed(Instant.parse("2030-01-01T12:00:00Z"), ZoneOffset.UTC)
         );
 

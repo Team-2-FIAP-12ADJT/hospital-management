@@ -8,6 +8,6 @@ public record EventEnvelope(
     UUID eventId,
     String eventType,
     int eventVersion,
-    @JsonSerialize(using = OccurredAtSerializer.class) Instant occurredAt,
+    @JsonSerialize(using = MillisecondInstantSerializer.class) Instant occurredAt,
     Object data
 ) {}
