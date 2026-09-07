@@ -81,4 +81,30 @@ public final class JwtTestSupport {
         jwt.sign(new RSASSASigner(signingKey.toRSAPrivateKey()));
         return jwt.serialize();
     }
+
+    public static String issueExpiredToken(
+        RSAKey signingKey,
+        UUID subject,
+        String role
+    ) throws JOSEException {
+        Date now = new Date();
+        JWTClaimsSet claims = new JWTClaimsSet.Builder()
+            .issuer("identity")
+            .audience("hospital-management")
+            .subject(subject.toString())
+            .claim("role", role)
+            .issueTime(new Date(now.getTime() - 10 * 60_000L))
+            .expirationTime(new Date(now.getTime() - 5 * 60_000L))
+            .build();
+
+        SignedJWT jwt = new SignedJWT(
+            new JWSHeader.Builder(JWSAlgorithm.RS256)
+                .keyID(signingKey.getKeyID())
+                .build(),
+            claims
+        );
+
+        jwt.sign(new RSASSASigner(signingKey.toRSAPrivateKey()));
+        return jwt.serialize();
+    }
 }

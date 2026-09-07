@@ -1,4 +1,4 @@
-package com.fiap.hospital.scheduling.outbox;
+package com.fiap.hospital.identity.outbox;
 
 import java.time.Instant;
 import java.util.UUID;
@@ -8,6 +8,6 @@ public record EventEnvelope(
     UUID eventId,
     String eventType,
     int eventVersion,
-    @JsonSerialize(using = MillisecondInstantSerializer.class) Instant occurredAt,
+    @JsonSerialize(using = OccurredAtSerializer.class) Instant occurredAt,
     Object data
 ) {}

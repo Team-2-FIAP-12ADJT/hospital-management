@@ -1,8 +1,11 @@
 package com.fiap.hospital.history.projection.api;
 
+import static org.hamcrest.Matchers.everyItem;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
 import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -94,7 +97,7 @@ class AppointmentHistoryGraphQlSecurityTest {
     }
 
     @Test
-    void patient_with_seeded_subject_receives_two_appointments() throws Exception {
+    void patient_with_seeded_subject_receives_nine_appointments() throws Exception {
         String token = issueToken(SEEDED_PATIENT_ID, "PATIENT");
 
         mockMvc
@@ -106,6 +109,206 @@ class AppointmentHistoryGraphQlSecurityTest {
             )
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.appointments.totalElements").value(9));
+    }
+
+    @Test
+    void patient_ignores_requested_patientId_and_sees_only_own_rows() throws Exception {
+        UUID patientId = UUID.fromString(
+            "00000000-0000-4000-8000-000000000002"
+        );
+        String token = issueToken(patientId, "PATIENT");
+        String query = "{ appointments(patientId: \"%s\", page: 1, size: 10) { totalElements appointments { patientId } } }"
+            .formatted(SEEDED_PATIENT_ID);
+
+        mockMvc
+            .perform(
+                post("/graphql")
+                    .header("Authorization", "Bearer " + token)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(graphqlBody(query))
+            )
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.appointments.totalElements").value(5))
+            .andExpect(
+                jsonPath("$.data.appointments.appointments[*].patientId")
+                    .value(everyItem(is(patientId.toString())))
+            )
+            .andExpect(
+                jsonPath("$.data.appointments.appointments").value(hasSize(5))
+            );
+    }
+
+    @Test
+    void doctor_reads_requested_patient_history() throws Exception {
+        String token = issueToken(UUID.randomUUID(), "DOCTOR");
+        String query = "{ appointments(patientId: \"%s\", page: 1, size: 10) { totalElements appointments { patientId } } }"
+            .formatted(SEEDED_PATIENT_ID);
+
+        mockMvc
+            .perform(
+                post("/graphql")
+                    .header("Authorization", "Bearer " + token)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(graphqlBody(query))
+            )
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.appointments.totalElements").value(9))
+            .andExpect(
+                jsonPath("$.data.appointments.appointments[*].patientId")
+                    .value(everyItem(is(SEEDED_PATIENT_ID.toString())))
+            )
+            .andExpect(
+                jsonPath("$.data.appointments.appointments").value(hasSize(9))
+            );
+    }
+
+    @Test
+    void nurse_reads_requested_patient_history() throws Exception {
+        String token = issueToken(UUID.randomUUID(), "NURSE");
+        String query = "{ appointments(patientId: \"%s\", page: 1, size: 10) { totalElements appointments { patientId } } }"
+            .formatted(SEEDED_PATIENT_ID);
+
+        mockMvc
+            .perform(
+                post("/graphql")
+                    .header("Authorization", "Bearer " + token)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(graphqlBody(query))
+            )
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.appointments.totalElements").value(9))
+            .andExpect(
+                jsonPath("$.data.appointments.appointments[*].patientId")
+                    .value(everyItem(is(SEEDED_PATIENT_ID.toString())))
+            )
+            .andExpect(
+                jsonPath("$.data.appointments.appointments").value(hasSize(9))
+            );
+    }
+
+    @Test
+    void doctor_without_patientId_receives_bad_request() throws Exception {
+        String token = issueToken(UUID.randomUUID(), "DOCTOR");
+
+        mockMvc
+            .perform(
+                post("/graphql")
+                    .header("Authorization", "Bearer " + token)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(graphqlBody("{ appointments(page: 1, size: 10) { totalElements } }"))
+            )
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.appointments").doesNotExist())
+            .andExpect(jsonPath("$.errors[0].extensions.classification").value("BAD_REQUEST"));
+    }
+
+    @Test
+    void nurse_without_patientId_receives_bad_request() throws Exception {
+        String token = issueToken(UUID.randomUUID(), "NURSE");
+
+        mockMvc
+            .perform(
+                post("/graphql")
+                    .header("Authorization", "Bearer " + token)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(graphqlBody("{ appointments(page: 1, size: 10) { totalElements } }"))
+            )
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.appointments").doesNotExist())
+            .andExpect(jsonPath("$.errors[0].extensions.classification").value("BAD_REQUEST"));
+    }
+
+    @Test
+    void blank_role_claim_is_denied() throws Exception {
+        String token = issueToken(UUID.randomUUID(), "");
+
+        mockMvc
+            .perform(
+                post("/graphql")
+                    .header("Authorization", "Bearer " + token)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(graphqlBody("{ appointments(page: 1, size: 10) { totalElements } }"))
+            )
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.appointments").doesNotExist())
+            .andExpect(jsonPath("$.errors[0].extensions.classification").value("FORBIDDEN"));
+    }
+
+    @Test
+    void expired_token_receives_401() throws Exception {
+        String token = JwtTestSupport.issueExpiredToken(
+            signingKey,
+            UUID.randomUUID(),
+            "PATIENT"
+        );
+
+        mockMvc
+            .perform(
+                post("/graphql")
+                    .header("Authorization", "Bearer " + token)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(graphqlBody("{ appointments(page: 1, size: 10) { totalElements } }"))
+            )
+            .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void token_signed_by_unknown_key_receives_401() throws Exception {
+        RSAKey unknownKey = JwtTestSupport.newSigningKey("history-unknown-key");
+        String token = JwtTestSupport.issueToken(
+            unknownKey,
+            UUID.randomUUID(),
+            "PATIENT"
+        );
+
+        mockMvc
+            .perform(
+                post("/graphql")
+                    .header("Authorization", "Bearer " + token)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(graphqlBody("{ appointments(page: 1, size: 10) { totalElements } }"))
+            )
+            .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void token_with_wrong_issuer_receives_401() throws Exception {
+        String token = JwtTestSupport.issueTokenWithClaims(
+            signingKey,
+            UUID.randomUUID(),
+            "PATIENT",
+            "attacker",
+            "hospital-management"
+        );
+
+        mockMvc
+            .perform(
+                post("/graphql")
+                    .header("Authorization", "Bearer " + token)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(graphqlBody("{ appointments(page: 1, size: 10) { totalElements } }"))
+            )
+            .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void token_with_wrong_audience_receives_401() throws Exception {
+        String token = JwtTestSupport.issueTokenWithClaims(
+            signingKey,
+            UUID.randomUUID(),
+            "PATIENT",
+            "identity",
+            "wrong-audience"
+        );
+
+        mockMvc
+            .perform(
+                post("/graphql")
+                    .header("Authorization", "Bearer " + token)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(graphqlBody("{ appointments(page: 1, size: 10) { totalElements } }"))
+            )
+            .andExpect(status().isUnauthorized());
     }
 
     @Test
