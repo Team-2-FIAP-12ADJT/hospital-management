@@ -28,7 +28,24 @@ gateway:
     scheduling: ${SCHEDULING_URL:http://scheduling:8080}
     history: ${HISTORY_URL:http://history:8080}
     notification: ${NOTIFICATION_URL:http://notification:8080}
+  api-docs:
+    identity: ${IDENTITY_URL:http://identity:8080}
+    scheduling: ${SCHEDULING_URL:http://scheduling:8080}
+    history: ${HISTORY_URL:http://history:8080}
+    notification: ${NOTIFICATION_URL:http://notification:8080}
   proxy-read-timeout: ${GATEWAY_PROXY_READ_TIMEOUT:5s}
+
+springdoc:
+  swagger-ui:
+    urls:
+      - name: identity
+        url: /docs/identity
+      - name: scheduling
+        url: /docs/scheduling
+      - name: history
+        url: /docs/history
+      - name: notification
+        url: /docs/notification
 
 management:
   endpoints:

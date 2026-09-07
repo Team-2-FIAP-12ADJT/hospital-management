@@ -9,9 +9,6 @@ import java.net.http.HttpTimeoutException;
 import java.util.Locale;
 import java.util.HashSet;
 import java.util.Set;
-import java.util.concurrent.ScheduledThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReference;
 
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -37,39 +34,17 @@ public class GatewayProxyFilter extends OncePerRequestFilter {
 
     private final RestClient proxyRestClient;
     private final RoutePrefixResolver routeResolver;
-    private final long bodyReadTimeoutNanos;
-
-
-    // Vigia do prazo do corpo: e ele que fecha o stream no vencimento e sinaliza, o que
-    // permite classificar por sinal em vez de por tempo observado no catch. Uma thread so
-    // agenda; o fechamento, que pode bloquear, sai dela para nao atrasar os demais prazos.
-    private final ScheduledThreadPoolExecutor deadlineWatchdog;
-
-    // Estado terminal disputado entre leitura e vigia. Sem a disputa, um abort seguido de
-    // suspensao da thread deixaria o vigia marcar prazo vencido depois do fato, virando 504.
-    private enum ReadOutcome {
-        PENDENTE,
-        PRAZO_VENCIDO,
-        RESOLVIDO
-    }
+    private final ProxyBodyReader bodyReader;
 
     public GatewayProxyFilter(
         @org.springframework.beans.factory.annotation.Qualifier("proxyRestClient")
         RestClient proxyRestClient,
-        GatewayProperties properties
+        GatewayProperties properties,
+        ProxyBodyReader bodyReader
     ) {
         this.proxyRestClient = proxyRestClient;
         this.routeResolver = new RoutePrefixResolver(properties.routes());
-        this.bodyReadTimeoutNanos = properties.proxyReadTimeout().toNanos();
-        var scheduler = new ScheduledThreadPoolExecutor(1, Thread.ofVirtual().factory());
-        // Sem isto, uma tarefa cancelada fica na fila ate o instante para o qual foi agendada.
-        scheduler.setRemoveOnCancelPolicy(true);
-        this.deadlineWatchdog = scheduler;
-    }
-
-    @jakarta.annotation.PreDestroy
-    void encerrarVigia() {
-        deadlineWatchdog.shutdownNow();
+        this.bodyReader = bodyReader;
     }
 
     @Override
@@ -105,7 +80,7 @@ public class GatewayProxyFilter extends OncePerRequestFilter {
     }
 
     public static int transportFailureStatus(Throwable exception) {
-        if (containsCause(exception, ProxyBodyReadTimeoutException.class)) {
+        if (containsCause(exception, ProxyBodyReader.ProxyBodyReadTimeoutException.class)) {
             return 504;
         } else if (containsCause(exception, HttpConnectTimeoutException.class)
             || containsCause(exception, ConnectException.class)) {
@@ -139,52 +114,14 @@ public class GatewayProxyFilter extends OncePerRequestFilter {
                     || clientResponse.getStatusCode().value() == 304
                     || method == HttpMethod.HEAD) {
                     response.setStatus(clientResponse.getStatusCode().value());
-                    copyResponseHeaders(clientResponse.getHeaders(), response);
+                    copyResponseHeaders(clientResponse.getHeaders(), response, target);
                     return null;
                 }
                 // Quem fecha o stream por prazo vencido e este vigia, e so ele levanta a
                 // bandeira. Comparar tempo decorrido no catch nao distingue um abort do
                 // upstream a poucos milissegundos do prazo de um prazo de fato vencido.
-                var body = clientResponse.getBody();
-                var outcome = new AtomicReference<>(ReadOutcome.PENDENTE);
-                var remaining = bodyReadTimeoutNanos - (System.nanoTime() - started);
-                var watchdog = deadlineWatchdog.schedule(() -> {
-                    // So fecha quem vencer a disputa: se a leitura ja se resolveu, o prazo
-                    // perdeu e nao pode reclassificar o que aconteceu antes dele.
-                    if (outcome.compareAndSet(ReadOutcome.PENDENTE, ReadOutcome.PRAZO_VENCIDO)) {
-                        Thread.startVirtualThread(() -> closeQuietly(body));
-                    }
-                }, Math.max(remaining, 0), TimeUnit.NANOSECONDS);
-
-                byte[] bytes;
-                try {
-                    bytes = body.readAllBytes();
-                    // Perder a disputa aqui significa que o prazo venceu e a leitura so
-                    // terminou porque o fechamento e assincrono. Entregar sucesso nesse caso
-                    // devolveria ao cliente uma resposta que estourou o prazo.
-                    if (!outcome.compareAndSet(ReadOutcome.PENDENTE, ReadOutcome.RESOLVIDO)) {
-                        throw new ProxyBodyReadTimeoutException(
-                            new IOException("prazo vencido antes da conclusao da leitura")
-                        );
-                    }
-                } catch (IOException exception) {
-                    if (!outcome.compareAndSet(ReadOutcome.PENDENTE, ReadOutcome.RESOLVIDO)) {
-                        throw new ProxyBodyReadTimeoutException(exception);
-                    }
-                    // Rede de seguranca para quando o vigia nao chegou a sinalizar, caso do
-                    // agendador atrasado com o Spring fechando o stream primeiro. So vale com
-                    // o prazo JA vencido: nesse ponto a requisicao estourou o prazo de fato, e
-                    // 504 se defende independentemente do que o upstream tenha feito. Nao
-                    // confundir com a margem antiga, que disparava a 80% do prazo, antes do
-                    // vencimento, e por isso convertia abort legitimo do upstream em 504.
-                    if (System.nanoTime() - started >= bodyReadTimeoutNanos) {
-                        throw new ProxyBodyReadTimeoutException(exception);
-                    }
-                    throw exception;
-                } finally {
-                    watchdog.cancel(false);
-                }
-                copyResponseHeaders(clientResponse.getHeaders(), response);
+                var bytes = bodyReader.read(clientResponse.getBody(), started);
+                copyResponseHeaders(clientResponse.getHeaders(), response, target);
                 response.setStatus(clientResponse.getStatusCode().value());
                 response.getOutputStream().write(bytes);
                 return null;
@@ -230,7 +167,11 @@ public class GatewayProxyFilter extends OncePerRequestFilter {
         }
     }
 
-    private void copyResponseHeaders(HttpHeaders source, HttpServletResponse target) {
+    private void copyResponseHeaders(
+        HttpHeaders source,
+        HttpServletResponse target,
+        URI upstreamRequest
+    ) {
         var connectionHeaders = new HashSet<String>();
         source.getOrEmpty("Connection").forEach(value ->
             connectionHeaders.addAll(connectionHeaderNames(value))
@@ -240,9 +181,70 @@ public class GatewayProxyFilter extends OncePerRequestFilter {
             if (!name.equalsIgnoreCase("Connection")
                 && !HOP_BY_HOP.contains(lowerName)
                 && !connectionHeaders.contains(lowerName)) {
-                values.forEach(value -> target.addHeader(name, value));
+                values.forEach(value ->
+                    target.addHeader(
+                        name,
+                        lowerName.equals("location")
+                            ? rewriteLocation(value, upstreamRequest)
+                            : value
+                    )
+                );
             }
         });
+    }
+
+    private String rewriteLocation(String value, URI upstreamRequest) {
+        if (value == null) {
+            return null;
+        }
+        try {
+            var location = URI.create(value);
+            if (location.getRawAuthority() == null) {
+                return value;
+            }
+            var resolved = upstreamRequest.resolve(location);
+            if (resolved.isAbsolute()
+                && sameOrigin(upstreamRequest, resolved)) {
+                var relative = resolved.getRawPath();
+                if (relative == null || relative.isEmpty()) {
+                    relative = "/";
+                }
+                if (resolved.getRawQuery() != null) {
+                    relative += "?" + resolved.getRawQuery();
+                }
+                if (resolved.getRawFragment() != null) {
+                    relative += "#" + resolved.getRawFragment();
+                }
+                if (relative.startsWith("//")) {
+                    relative = "/.//" + relative.substring(2);
+                }
+                return relative;
+            }
+        } catch (IllegalArgumentException ignored) {
+            // Preserve an invalid Location rather than changing the upstream response.
+        }
+        return value;
+    }
+
+    private boolean sameOrigin(URI left, URI right) {
+        if (left.getHost() == null || right.getHost() == null
+            || !left.getScheme().equalsIgnoreCase(right.getScheme())
+            || !left.getHost().equalsIgnoreCase(right.getHost())
+            || !java.util.Objects.equals(left.getRawUserInfo(), right.getRawUserInfo())) {
+            return false;
+        }
+        return effectivePort(left) == effectivePort(right);
+    }
+
+    private int effectivePort(URI uri) {
+        if (uri.getPort() != -1) {
+            return uri.getPort();
+        }
+        return switch (uri.getScheme().toLowerCase(Locale.ROOT)) {
+            case "http" -> 80;
+            case "https" -> 443;
+            default -> -1;
+        };
     }
 
     private Set<String> connectionHeaderNames(String value) {
@@ -263,21 +265,6 @@ public class GatewayProxyFilter extends OncePerRequestFilter {
             }
         }
         return false;
-    }
-
-    private static void closeQuietly(java.io.InputStream stream) {
-        try {
-            stream.close();
-        } catch (IOException ignored) {
-            // Fechar e a forma de interromper a leitura travada; falha aqui nao muda o desfecho.
-        }
-    }
-
-    private static final class ProxyBodyReadTimeoutException extends IOException {
-
-        private ProxyBodyReadTimeoutException(IOException cause) {
-            super("Upstream body read timed out", cause);
-        }
     }
 
 }
