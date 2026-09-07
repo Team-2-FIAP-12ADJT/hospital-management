@@ -2,6 +2,7 @@ package com.fiap.hospital.gateway.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -25,11 +26,19 @@ public class SecurityConfig {
                     .requestMatchers(
                         "/actuator/health/**",
                         "/error",
+                        "/health/system",
                         "/v3/api-docs/**",
                         "/swagger-ui/**",
-                        "/swagger-ui.html"
+                        "/swagger-ui.html",
+                        "/auth/login",
+                        "/.well-known/jwks.json",
+                        "/graphiql",
+                        "/graphiql/**"
                     )
                     .permitAll()
+                    .requestMatchers(HttpMethod.POST, "/api/patients").permitAll()
+                    .requestMatchers(HttpMethod.POST, "/api/doctors").authenticated()
+                    .requestMatchers("/api/appointments/**", "/graphql").authenticated()
                     .anyRequest()
                     .denyAll()
             )
