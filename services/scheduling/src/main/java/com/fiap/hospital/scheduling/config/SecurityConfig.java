@@ -40,6 +40,14 @@ public class SecurityConfig {
                     .authenticated()
                     .requestMatchers(HttpMethod.POST, "/api/appointments")
                     .authenticated()
+                    // Subcaminho não listado cai no denyAll abaixo, inclusive para o papel certo.
+                    .requestMatchers(
+                        HttpMethod.POST,
+                        "/api/appointments/*/reschedule",
+                        "/api/appointments/*/cancel",
+                        "/api/appointments/*/complete"
+                    )
+                    .authenticated()
                     .requestMatchers(HttpMethod.POST, "/api/patients")
                     .permitAll()
                     .anyRequest()
