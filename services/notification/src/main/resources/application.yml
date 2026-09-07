@@ -19,6 +19,21 @@ spring:
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
 
+  mail:
+    host: ${MAIL_HOST:mailpit}
+    port: ${MAIL_PORT:1025}
+    properties:
+      mail.smtp.auth: false
+      mail.smtp.starttls.enable: false
+
+notification:
+  reminder-lead-time: ${REMINDER_LEAD_TIME:PT24H}
+  sweep-interval: ${NOTIFICATION_SWEEP_INTERVAL:PT15S}
+  max-attempts: ${NOTIFICATION_MAX_ATTEMPTS:10}
+  dispatch-batch-size: ${NOTIFICATION_DISPATCH_BATCH_SIZE:50}
+  from-address: ${NOTIFICATION_FROM_ADDRESS:nao-responda@hospital.local}
+  display-zone: ${NOTIFICATION_DISPLAY_ZONE:America/Sao_Paulo}
+
 server:
   port: 8080
 
