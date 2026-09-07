@@ -231,6 +231,9 @@ services:
       kafka:
         condition: service_healthy
     environment:
+      NOTIFICATION_DB_URL: ${NOTIFICATION_DB_URL:-jdbc:postgresql://notification-db:5432/notification}
+      POSTGRES_USER: ${POSTGRES_USER:-hospital}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-hospital}
       SERVER_PORT: ${SERVER_PORT:-8080}
       KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:-kafka:9092}
     restart: unless-stopped
@@ -271,6 +274,13 @@ services:
       - "${GATEWAY_PORT:-8080}:8080"
     environment:
       IDENTITY_JWKS_URI: ${IDENTITY_JWKS_URI:-http://identity:8080/.well-known/jwks.json}
+      # Destinos do proxy e da saude agregada. Sao os nomes de servico da rede do
+      # Compose; existem como variavel para apontar o gateway para fora dela.
+      IDENTITY_URL: ${IDENTITY_URL:-http://identity:8080}
+      SCHEDULING_URL: ${SCHEDULING_URL:-http://scheduling:8080}
+      HISTORY_URL: ${HISTORY_URL:-http://history:8080}
+      NOTIFICATION_URL: ${NOTIFICATION_URL:-http://notification:8080}
+      GATEWAY_PROXY_READ_TIMEOUT: ${GATEWAY_PROXY_READ_TIMEOUT:-5s}
     restart: unless-stopped
 
 volumes:
