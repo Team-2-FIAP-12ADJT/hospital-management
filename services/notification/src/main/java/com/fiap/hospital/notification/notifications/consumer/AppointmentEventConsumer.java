@@ -1,6 +1,9 @@
 package com.fiap.hospital.notification.notifications.consumer;
 
-import com.fiap.hospital.notification.notifications.service.ScheduleAppointmentNotifications;
+import com.fiap.hospital.notification.notifications.service.AppointmentEvent;
+import com.fiap.hospital.notification.notifications.service.AppointmentNotifications;
+import com.fiap.hospital.notification.notifications.service.CancelledAppointment;
+import com.fiap.hospital.notification.notifications.service.RescheduledAppointment;
 import com.fiap.hospital.notification.notifications.service.ScheduledAppointment;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.slf4j.Logger;
@@ -14,14 +17,14 @@ public class AppointmentEventConsumer {
     private static final Logger log = LoggerFactory.getLogger(AppointmentEventConsumer.class);
 
     private final AppointmentEventParser parser;
-    private final ScheduleAppointmentNotifications scheduleNotifications;
+    private final AppointmentNotifications appointmentNotifications;
 
     AppointmentEventConsumer(
         AppointmentEventParser parser,
-        ScheduleAppointmentNotifications scheduleNotifications
+        AppointmentNotifications appointmentNotifications
     ) {
         this.parser = parser;
-        this.scheduleNotifications = scheduleNotifications;
+        this.appointmentNotifications = appointmentNotifications;
     }
 
     @KafkaListener(topics = "hospital.appointment", groupId = "notification-appointment")
@@ -34,9 +37,9 @@ public class AppointmentEventConsumer {
     }
 
     private void consume(String envelopeJson, int partition, long offset) {
-        ScheduledAppointment appointment;
+        AppointmentEvent event;
         try {
-            appointment = parser.parse(envelopeJson);
+            event = parser.parse(envelopeJson);
         } catch (UnsupportedEventException exception) {
             log.info("tipo fora da notificação de agendamento, ignorado: {}", exception.getMessage());
             return;
@@ -47,6 +50,12 @@ public class AppointmentEventConsumer {
             );
             return;
         }
-        scheduleNotifications.schedule(appointment);
+
+        switch (event) {
+            case ScheduledAppointment scheduled -> appointmentNotifications.schedule(scheduled);
+            case RescheduledAppointment rescheduled ->
+                appointmentNotifications.reschedule(rescheduled);
+            case CancelledAppointment cancelled -> appointmentNotifications.cancel(cancelled);
+        }
     }
 }

@@ -128,6 +128,11 @@ public class Notification implements Persistable<UUID> {
         this.sentAt = normalize(require(now, "now"));
     }
 
+    public void cancel() {
+        requireStatus(NotificationStatus.PENDING);
+        this.status = NotificationStatus.CANCELLED;
+    }
+
     public void recordFailedAttempt() {
         requireStatus(NotificationStatus.PENDING);
         this.attempts++;

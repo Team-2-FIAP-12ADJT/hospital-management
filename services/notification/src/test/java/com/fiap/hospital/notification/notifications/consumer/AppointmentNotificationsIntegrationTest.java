@@ -211,6 +211,120 @@ class AppointmentNotificationsIntegrationTest {
     }
 
     @Test
+    void reschedulingSwapsTheReminderWithoutTrippingTheUniqueIndex() {
+        UUID patientId = UUID.randomUUID();
+        UUID appointmentId = UUID.randomUUID();
+        registerContact(patientId, "marcos@exemplo.com");
+        scheduleAppointment(appointmentId, patientId);
+        Instant newSlot = EventFixtures.SCHEDULED_AT.plus(Duration.ofDays(2));
+
+        appointmentConsumer.receive(record("hospital.appointment", EventFixtures
+            .appointmentRescheduled(
+                UUID.randomUUID(), appointmentId, patientId,
+                EventFixtures.SCHEDULED_AT, newSlot
+            )));
+
+        var reminders = notifications.findAll().stream()
+            .filter(n -> n.getKind() == NotificationKind.REMINDER)
+            .toList();
+        assertThat(reminders)
+            .as("um lembrete cancelado e um pendente, nunca dois pendentes")
+            .hasSize(2);
+        assertThat(reminders).anySatisfy(reminder -> {
+            assertThat(reminder.getStatus()).isEqualTo(NotificationStatus.CANCELLED);
+            assertThat(reminder.getScheduledAt()).isEqualTo(EventFixtures.SCHEDULED_AT);
+        });
+        assertThat(reminders).anySatisfy(reminder -> {
+            assertThat(reminder.getStatus()).isEqualTo(NotificationStatus.PENDING);
+            assertThat(reminder.getFireAt()).isEqualTo(newSlot.minus(Duration.ofHours(24)));
+        });
+    }
+
+    @Test
+    void theSwappedReminderFiresForTheNewTimeAndNotTheOld() {
+        UUID patientId = UUID.randomUUID();
+        UUID appointmentId = UUID.randomUUID();
+        registerContact(patientId, "marcos@exemplo.com");
+        scheduleAppointment(appointmentId, patientId);
+        Instant newSlot = EventFixtures.SCHEDULED_AT.plus(Duration.ofDays(2));
+        appointmentConsumer.receive(record("hospital.appointment", EventFixtures
+            .appointmentRescheduled(
+                UUID.randomUUID(), appointmentId, patientId,
+                EventFixtures.SCHEDULED_AT, newSlot
+            )));
+        mailSender.sent().clear();
+
+        clock.set(EventFixtures.SCHEDULED_AT.minus(Duration.ofHours(24)));
+        dispatcher.sweep();
+
+        assertThat(mailSender.sent())
+            .as("no horário do lembrete antigo nada dispara — ele foi cancelado")
+            .noneSatisfy(message -> assertThat(message.getSubject())
+                .isEqualTo("Lembrete: sua consulta está próxima"));
+
+        clock.set(newSlot.minus(Duration.ofHours(24)));
+        dispatcher.sweep();
+
+        assertThat(mailSender.sent())
+            .anySatisfy(message -> assertThat(message.getSubject())
+                .isEqualTo("Lembrete: sua consulta está próxima"));
+    }
+
+    @Test
+    void cancellingAnAppointmentCancelsThePendingReminder() {
+        UUID patientId = UUID.randomUUID();
+        UUID appointmentId = UUID.randomUUID();
+        registerContact(patientId, "marcos@exemplo.com");
+        scheduleAppointment(appointmentId, patientId);
+
+        appointmentConsumer.receive(record("hospital.appointment",
+            EventFixtures.appointmentCancelled(UUID.randomUUID(), appointmentId, patientId)));
+
+        assertThat(statusOf(NotificationKind.REMINDER)).isEqualTo(NotificationStatus.CANCELLED);
+
+        mailSender.sent().clear();
+        clock.set(EventFixtures.SCHEDULED_AT.minus(Duration.ofHours(24)));
+        dispatcher.sweep();
+
+        assertThat(mailSender.sent())
+            .as("lembrete cancelado não é varrido; a confirmação pendente sai normalmente")
+            .noneSatisfy(message -> assertThat(message.getSubject())
+                .isEqualTo("Lembrete: sua consulta está próxima"));
+    }
+
+    @Test
+    void cancellingAfterTheReminderWentOutIsSilent() {
+        UUID patientId = UUID.randomUUID();
+        UUID appointmentId = UUID.randomUUID();
+        registerContact(patientId, "marcos@exemplo.com");
+        scheduleAppointment(appointmentId, patientId);
+        clock.set(EventFixtures.SCHEDULED_AT.minus(Duration.ofHours(24)));
+        dispatcher.sweep();
+        assertThat(statusOf(NotificationKind.REMINDER)).isEqualTo(NotificationStatus.SENT);
+
+        appointmentConsumer.receive(record("hospital.appointment",
+            EventFixtures.appointmentCancelled(UUID.randomUUID(), appointmentId, patientId)));
+
+        assertThat(statusOf(NotificationKind.REMINDER))
+            .as("lembrete já enviado não tem o que cancelar, e isso não é erro")
+            .isEqualTo(NotificationStatus.SENT);
+    }
+
+    @Test
+    void appointmentCompletedIsNotConsumedHere() {
+        UUID patientId = UUID.randomUUID();
+        UUID appointmentId = UUID.randomUUID();
+        registerContact(patientId, "marcos@exemplo.com");
+
+        appointmentConsumer.receive(record("hospital.appointment",
+            EventFixtures.appointmentCompleted(UUID.randomUUID(), appointmentId, patientId)));
+
+        assertThat(notifications.findAll())
+            .as("AppointmentCompleted é só do history")
+            .isEmpty();
+    }
+
+    @Test
     void refusesASecondPendingReminderForTheSameAppointment() {
         UUID appointmentId = UUID.randomUUID();
         UUID patientId = UUID.randomUUID();

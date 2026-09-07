@@ -70,6 +70,79 @@ final class EventFixtures {
             """.formatted(eventId, occurredAt, patientId, email);
     }
 
+    static String appointmentRescheduled(
+        UUID eventId, UUID appointmentId, UUID patientId, Instant previous, Instant scheduledAt
+    ) {
+        return """
+            {
+              "eventId": "%s",
+              "eventType": "AppointmentRescheduled",
+              "eventVersion": 1,
+              "occurredAt": "%s",
+              "data": {
+                "appointmentId": "%s",
+                "patientId": "%s",
+                "doctorId": "%s",
+                "previousScheduledAt": "%s",
+                "scheduledAt": "%s",
+                "status": "SCHEDULED",
+                "fitIn": false,
+                "fitInReason": null,
+                "patientName": "Marcos Vieira",
+                "doctorName": "Dra. Helena Prado",
+                "doctorSpecialty": "Cardiologia"
+              }
+            }
+            """.formatted(
+                eventId, OCCURRED_AT, appointmentId, patientId, UUID.randomUUID(),
+                previous, scheduledAt
+            );
+    }
+
+    static String appointmentCancelled(UUID eventId, UUID appointmentId, UUID patientId) {
+        return """
+            {
+              "eventId": "%s",
+              "eventType": "AppointmentCancelled",
+              "eventVersion": 1,
+              "occurredAt": "%s",
+              "data": {
+                "appointmentId": "%s",
+                "patientId": "%s",
+                "doctorId": "%s",
+                "scheduledAt": "%s",
+                "status": "CANCELLED",
+                "cancelledAt": "%s"
+              }
+            }
+            """.formatted(
+                eventId, OCCURRED_AT, appointmentId, patientId, UUID.randomUUID(),
+                SCHEDULED_AT, OCCURRED_AT
+            );
+    }
+
+    static String appointmentCompleted(UUID eventId, UUID appointmentId, UUID patientId) {
+        return """
+            {
+              "eventId": "%s",
+              "eventType": "AppointmentCompleted",
+              "eventVersion": 1,
+              "occurredAt": "%s",
+              "data": {
+                "appointmentId": "%s",
+                "patientId": "%s",
+                "doctorId": "%s",
+                "scheduledAt": "%s",
+                "status": "COMPLETED",
+                "completedAt": "%s"
+              }
+            }
+            """.formatted(
+                eventId, OCCURRED_AT, appointmentId, patientId, UUID.randomUUID(),
+                SCHEDULED_AT, OCCURRED_AT
+            );
+    }
+
     static String doctorRegistered(UUID eventId) {
         return """
             {
