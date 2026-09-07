@@ -7,3 +7,9 @@ spring:
   kafka:
     listener:
       auto-startup: false
+
+identity:
+  jwt:
+    issuer: identity
+    audience: hospital-management
+    access-token-ttl: PT15M
