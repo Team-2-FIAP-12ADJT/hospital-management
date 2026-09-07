@@ -1,6 +1,8 @@
 package com.fiap.hospital.notification.notifications.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyShort;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -33,11 +35,7 @@ class NotificationDispatcherTest {
 
     @Test
     void asksForDueNotificationsUnderTheAttemptCapAndBatchSize() {
-        when(notifications.findDue(
-            org.mockito.ArgumentMatchers.any(),
-            org.mockito.ArgumentMatchers.anyShort(),
-            org.mockito.ArgumentMatchers.any()
-        )).thenReturn(List.of());
+        when(notifications.findDue(any(), anyShort(), any())).thenReturn(List.of());
 
         dispatcher().sweep();
 
@@ -55,11 +53,7 @@ class NotificationDispatcherTest {
     void deliversEachDueNotificationSeparately() {
         Notification first = confirmation();
         Notification second = confirmation();
-        when(notifications.findDue(
-            org.mockito.ArgumentMatchers.any(),
-            org.mockito.ArgumentMatchers.anyShort(),
-            org.mockito.ArgumentMatchers.any()
-        )).thenReturn(List.of(first, second));
+        when(notifications.findDue(any(), anyShort(), any())).thenReturn(List.of(first, second));
 
         dispatcher().sweep();
 

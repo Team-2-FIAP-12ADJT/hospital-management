@@ -1,6 +1,7 @@
 package com.fiap.hospital.notification.notifications.consumer;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.fiap.hospital.notification.notifications.domain.Notification;
 import com.fiap.hospital.notification.notifications.domain.NotificationKind;
@@ -25,6 +26,7 @@ import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.mail.MailSender;
 import org.springframework.mail.SimpleMailMessage;
 import org.testcontainers.junit.jupiter.Container;
@@ -67,12 +69,29 @@ class AppointmentNotificationsIntegrationTest {
     @Autowired
     private MutableClock clock;
 
+    private static final UUID SEEDED_PATIENT =
+        UUID.fromString("00000000-0000-4000-8000-000000000003");
+
     @BeforeEach
     void reset() {
         notifications.deleteAll();
-        contacts.deleteAll();
         mailSender.sent().clear();
         clock.set(NOW);
+    }
+
+    @Test
+    void theSeededPatientIsReachableWithoutEverHavingBeenRegisteredByEvent() {
+        assertThat(contacts.findById(SEEDED_PATIENT))
+            .as("a conta de demonstração nasce por migração; sem semente na réplica não há e-mail")
+            .isPresent();
+
+        scheduleAppointment(UUID.randomUUID(), SEEDED_PATIENT);
+        dispatcher.sweep();
+
+        assertThat(mailSender.sent()).hasSize(1);
+        assertThat(mailSender.sent().getFirst().getTo())
+            .containsExactly("marcos.vieira@exemplo.com");
+        assertThat(statusOf(NotificationKind.CONFIRMATION)).isEqualTo(NotificationStatus.SENT);
     }
 
     @Test
@@ -197,11 +216,9 @@ class AppointmentNotificationsIntegrationTest {
         UUID patientId = UUID.randomUUID();
         notifications.saveAndFlush(pendingReminder(appointmentId, patientId));
 
-        org.assertj.core.api.Assertions
-            .assertThatThrownBy(() ->
-                notifications.saveAndFlush(pendingReminder(appointmentId, patientId)))
+        assertThatThrownBy(() -> notifications.saveAndFlush(pendingReminder(appointmentId, patientId)))
             .as("no máximo um lembrete pendente por consulta")
-            .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
+            .isInstanceOf(DataIntegrityViolationException.class);
     }
 
     private static Notification pendingReminder(UUID appointmentId, UUID patientId) {

@@ -38,7 +38,7 @@ public class AppointmentEventConsumer {
         try {
             appointment = parser.parse(envelopeJson);
         } catch (UnsupportedEventException exception) {
-            log.info("tipo fora do aviso de agendamento, ignorado: {}", exception.getMessage());
+            log.info("tipo fora da notificação de agendamento, ignorado: {}", exception.getMessage());
             return;
         } catch (RuntimeException exception) {
             log.error(

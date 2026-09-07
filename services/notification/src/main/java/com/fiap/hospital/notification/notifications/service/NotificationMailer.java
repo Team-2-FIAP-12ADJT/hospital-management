@@ -3,8 +3,8 @@ package com.fiap.hospital.notification.notifications.service;
 import com.fiap.hospital.notification.notifications.domain.Notification;
 import java.time.format.DateTimeFormatter;
 import java.util.Locale;
-import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.MailSender;
+import org.springframework.mail.SimpleMailMessage;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -25,26 +25,13 @@ public class NotificationMailer {
         SimpleMailMessage message = new SimpleMailMessage();
         message.setFrom(properties.fromAddress());
         message.setTo(recipient);
-        message.setSubject(subject(notification));
+        message.setSubject(notification.getKind().subject());
         message.setText(body(notification));
         mailSender.send(message);
     }
 
-    private static String subject(Notification notification) {
-        return switch (notification.getKind()) {
-            case CONFIRMATION -> "Consulta agendada";
-            case REMINDER -> "Lembrete: sua consulta está próxima";
-            case ACTIVATION_INVITE -> "Ativação de conta";
-        };
-    }
-
     private String body(Notification notification) {
         String when = WHEN.format(notification.getScheduledAt().atZone(properties.displayZone()));
-        String opening = switch (notification.getKind()) {
-            case CONFIRMATION -> "Sua consulta foi agendada.";
-            case REMINDER -> "Este é um lembrete da sua consulta.";
-            case ACTIVATION_INVITE -> "Ative sua conta.";
-        };
         return """
             %s
 
@@ -52,6 +39,11 @@ public class NotificationMailer {
             Profissional: %s (%s)
 
             Em caso de imprevisto, entre em contato com a recepção.
-            """.formatted(opening, when, notification.getDoctorName(), notification.getDoctorSpecialty());
+            """.formatted(
+                notification.getKind().opening(),
+                when,
+                notification.getDoctorName(),
+                notification.getDoctorSpecialty()
+            );
     }
 }

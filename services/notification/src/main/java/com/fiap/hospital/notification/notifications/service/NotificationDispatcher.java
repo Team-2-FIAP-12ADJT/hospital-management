@@ -29,8 +29,8 @@ public class NotificationDispatcher {
     }
 
     /**
-     * Uma transação por aviso: falha de um não desfaz a entrega dos outros do
-     * mesmo lote.
+     * Uma transação por notificação: falha de uma não desfaz a entrega das
+     * outras do mesmo lote.
      */
     @Scheduled(fixedDelayString = "${notification.sweep-interval}")
     public void sweep() {
