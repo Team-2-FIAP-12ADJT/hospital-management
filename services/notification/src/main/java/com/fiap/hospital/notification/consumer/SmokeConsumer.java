@@ -39,8 +39,8 @@ public class SmokeConsumer {
             envelope = objectMapper.readTree(record.value());
         } catch (RuntimeException e) {
             log.error(
-                "discarding unparseable message on hospital.person, partition={} offset={}: {}",
-                record.partition(), record.offset(), e.getMessage()
+                "discarding unparseable message on hospital.person, partition={} offset={} cause={}",
+                record.partition(), record.offset(), e.getClass().getSimpleName()
             );
             return;
         }
@@ -50,8 +50,8 @@ public class SmokeConsumer {
         if (eventId.isEmpty() || eventType.isEmpty()) {
             log.warn(
                 "discarding message missing eventId/eventType on hospital.person, "
-                    + "partition={} offset={} value={}",
-                record.partition(), record.offset(), record.value()
+                    + "partition={} offset={}",
+                record.partition(), record.offset()
             );
             return;
         }
@@ -65,14 +65,14 @@ public class SmokeConsumer {
         } catch (IllegalArgumentException e) {
             log.warn(
                 "discarding message with invalid eventId on hospital.person, "
-                    + "partition={} offset={} value={}",
-                record.partition(), record.offset(), record.value()
+                    + "partition={} offset={}",
+                record.partition(), record.offset()
             );
             return;
         }
 
         idempotencyService.process(parsedEventId, () ->
-            log.info("received event eventId={} eventType={}", eventId, eventType)
+            log.info("received event eventId={}", eventId)
         );
     }
 }

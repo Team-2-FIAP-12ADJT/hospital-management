@@ -1,0 +1,18 @@
+spring:
+  flyway:
+    enabled: true
+  jpa:
+    hibernate:
+      ddl-auto: validate
+  kafka:
+    listener:
+      auto-startup: false
+  mail:
+    host: 127.0.0.1
+    port: 3025
+
+# MockitoBean substitui o JavaMailSender; o contributor de health exige o bean real.
+management:
+  health:
+    mail:
+      enabled: false
