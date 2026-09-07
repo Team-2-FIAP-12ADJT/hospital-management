@@ -10,6 +10,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public record GatewayProperties(
     Map<String, URI> routes,
     Map<String, URI> healthServices,
+    Map<String, URI> apiDocs,
     Duration proxyReadTimeout
 ) {
 }

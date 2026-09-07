@@ -5,6 +5,11 @@ import io.swagger.v3.oas.annotations.enums.SecuritySchemeType;
 import io.swagger.v3.oas.annotations.info.Info;
 import io.swagger.v3.oas.annotations.security.SecurityScheme;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Bean;
+import org.springframework.beans.factory.annotation.Value;
+
+import io.swagger.v3.oas.models.OpenAPI;
+import io.swagger.v3.oas.models.servers.Server;
 
 // Declara o esquema "bearerAuth" para o Swagger UI enviar o JWT no "Try it out";
 // sem ele, rota protegida por @PreAuthorize não tem como ser exercitada na UI.
@@ -18,4 +23,12 @@ import org.springframework.context.annotation.Configuration;
     scheme = "bearer",
     bearerFormat = "JWT"
 )
-public class OpenApiConfig {}
+public class OpenApiConfig {
+
+    @Bean
+    OpenAPI schedulingOpenAPI(
+        @Value("${GATEWAY_PUBLIC_URL:http://localhost:8080}") String gatewayPublicUrl
+    ) {
+        return new OpenAPI().addServersItem(new Server().url(gatewayPublicUrl));
+    }
+}

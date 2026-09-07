@@ -15,6 +15,12 @@
     <name>notification</name>
 
     <dependencies>
+        <dependency>
+            <groupId>org.springdoc</groupId>
+            <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+            <version>3.1.0</version>
+        </dependency>
+
         <!-- Boot 4 modularizou a autoconfiguração: só org.springframework.kafka:spring-kafka
              no classpath NÃO ativa o KafkaAutoConfiguration (confirmado por execução —
              @KafkaListener nunca dispara). O starter oficial é quem traz o módulo de

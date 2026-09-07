@@ -20,7 +20,7 @@ public class SecurityConfig {
         http.csrf(csrf -> csrf.disable())
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/actuator/health/**", "/error").permitAll()
+                        .requestMatchers("/actuator/health/**", "/error", "/v3/api-docs/**").permitAll()
                         .requestMatchers("/graphiql", "/graphiql/**").permitAll()
                         .requestMatchers("/graphql").authenticated()
                         .anyRequest().denyAll())

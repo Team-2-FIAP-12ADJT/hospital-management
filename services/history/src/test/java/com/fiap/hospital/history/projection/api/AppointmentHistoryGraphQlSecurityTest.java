@@ -4,6 +4,7 @@ import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -86,6 +87,13 @@ class AppointmentHistoryGraphQlSecurityTest {
                     .content(graphqlBody("{ appointments(page: 1, size: 10) { totalElements } }"))
             )
             .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void anonymous_openapi_request_without_token_receives_200() throws Exception {
+        mockMvc
+            .perform(get("/v3/api-docs"))
+            .andExpect(status().isOk());
     }
 
     @Test

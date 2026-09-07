@@ -29,6 +29,8 @@ import org.junit.jupiter.api.MethodOrderer.OrderAnnotation;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestMethodOrder;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -50,6 +52,8 @@ class GatewayIntegrationTest {
     private static final AtomicBoolean DELAY_HEALTH = new AtomicBoolean();
     private static final AtomicBoolean DELAY_DOCTORS = new AtomicBoolean();
     private static final AtomicBoolean DELAY_BODY = new AtomicBoolean();
+    private static final AtomicBoolean DELAY_DOCS = new AtomicBoolean();
+    private static final AtomicBoolean DELAY_DOCS_BODY = new AtomicBoolean();
     private static final AtomicBoolean SLOW_IDENTITY = new AtomicBoolean();
     private static final AtomicBoolean SCHEDULING_DOWN = new AtomicBoolean();
     private static final AtomicInteger SCHEDULING_CALLS = new AtomicInteger();
@@ -331,6 +335,130 @@ class GatewayIntegrationTest {
         }
     }
 
+    @ParameterizedTest
+    @ValueSource(strings = {"identity", "scheduling", "history", "notification"})
+    void docsAgregaCadaServicoConfiguradoSemToken(String service) throws Exception {
+        var response = request("GET", "/docs/" + service, null, Map.of());
+
+        assertThat(response.statusCode()).isEqualTo(418);
+        assertThat(response.body()).isEqualTo("{\"service\":\"" + service + "\"}");
+        assertThat(response.headers().firstValue("Content-Type"))
+            .hasValue("application/json");
+    }
+
+    @Test
+    void docsDeServicoDesconhecidoVira404() throws Exception {
+        assertThat(request("GET", "/docs/unknown", null, Map.of()).statusCode())
+            .isEqualTo(404);
+    }
+
+    @Test
+    void docsForaDoArVira503() throws Exception {
+        SERVERS.get("identity").stop(0);
+        try {
+            assertThat(request("GET", "/docs/identity", null, Map.of()).statusCode())
+                .isEqualTo(503);
+        } finally {
+            replaceServer("identity");
+        }
+    }
+
+    @Test
+    void docsLentaVira504() throws Exception {
+        DELAY_DOCS.set(true);
+        try {
+            assertThat(request("GET", "/docs/identity", null, Map.of()).statusCode())
+                .isEqualTo(504);
+        } finally {
+            DELAY_DOCS.set(false);
+        }
+    }
+
+    @Test
+    void docsLentaDuranteCorpoVira504() throws Exception {
+        DELAY_DOCS_BODY.set(true);
+        try {
+            assertThat(request("GET", "/docs/identity", null, Map.of()).statusCode())
+                .isEqualTo(504);
+        } finally {
+            DELAY_DOCS_BODY.set(false);
+        }
+    }
+
+    @Test
+    void locationDoUpstreamViraCaminhoRelativo() throws Exception {
+        var response = request("GET", "/graphiql/redirect", null, Map.of());
+
+        assertThat(response.statusCode()).isEqualTo(302);
+        assertThat(response.headers().firstValue("Location"))
+            .hasValue("/graphiql?path=/graphql#fragment");
+        assertThat(response.headers().firstValue("X-Upstream-Uri"))
+            .hasValue(url("history") + "/graphiql?path=/graphql#fragment");
+    }
+
+    @Test
+    void locationDeTerceiroPermaneceIntacta() throws Exception {
+        var response = request("GET", "/graphiql/third-party", null, Map.of());
+
+        assertThat(response.statusCode()).isEqualTo(302);
+        assertThat(response.headers().firstValue("Location"))
+            .hasValue("https://public.example/elsewhere?x=1#fragment");
+    }
+
+    @Test
+    void locationProtocolRelativeDoUpstreamViraCaminhoRelativo() throws Exception {
+        var response = request("GET", "/graphiql/protocol-relative", null, Map.of());
+
+        assertThat(response.statusCode()).isEqualTo(302);
+        assertThat(response.headers().firstValue("Location"))
+            .hasValue("/graphiql?path=/graphql#fragment");
+    }
+
+    @Test
+    void locationSoComQueryPermaneceIntacta() throws Exception {
+        var response = request("GET", "/graphiql/query-only", null, Map.of());
+
+        assertThat(response.statusCode()).isEqualTo(302);
+        assertThat(response.headers().firstValue("Location"))
+            .hasValue("?path=/graphql");
+    }
+
+    @Test
+    void locationComCaminhoQueComecaComDuasBarrasNaoMudaOrigem() throws Exception {
+        var response = request("GET", "/graphiql/double-slash-path", null, Map.of());
+
+        assertThat(response.statusCode()).isEqualTo(302);
+        assertThat(response.headers().firstValue("Location"))
+            .hasValue("/.//external.example/path");
+    }
+
+    @Test
+    void locationComHostMaiusculoEReescrita() throws Exception {
+        var response = request("GET", "/graphiql/uppercase-host", null, Map.of());
+
+        assertThat(response.headers().firstValue("Location"))
+            .hasValue("/graphiql?path=/graphql");
+    }
+
+    @Test
+    void locationComPortaEquivalenteEReescrita() throws Exception {
+        var response = request("GET", "/graphiql/equivalent-port", null, Map.of());
+
+        assertThat(response.headers().firstValue("Location"))
+            .hasValue("/graphiql?path=/graphql");
+    }
+
+    @Test
+    void locationComUserInfoNaoEReescrita() throws Exception {
+        var response = request("GET", "/graphiql/user-info", null, Map.of());
+
+        assertThat(response.headers().firstValue("Location"))
+            .hasValue(
+                "http://user@localhost:" + SERVERS.get("history").getAddress().getPort()
+                    + "/graphiql?path=/graphql"
+            );
+    }
+
     private HttpResponse<String> request(
         String method,
         String path,
@@ -443,6 +571,99 @@ class GatewayIntegrationTest {
                 sleep(2_500);
             }
             respond(exchange, 200, "{\"status\":\"UP\"}");
+            return;
+        }
+        if (exchange.getRequestURI().getPath().equals("/v3/api-docs")) {
+            if (DELAY_DOCS.get()) {
+                sleep(6_000);
+            }
+            exchange.getResponseHeaders().set("Content-Type", "application/json");
+            if (DELAY_DOCS_BODY.get()) {
+                exchange.sendResponseHeaders(418, 0);
+                exchange.getResponseBody().write("{\"partial\":true}".getBytes());
+                exchange.getResponseBody().flush();
+                sleep(6_000);
+                exchange.close();
+                return;
+            }
+            respond(exchange, 418, "{\"service\":\"" + service + "\"}");
+            return;
+        }
+        if (service.equals("history")
+            && exchange.getRequestURI().getPath().equals("/graphiql/redirect")) {
+            exchange.getResponseHeaders().set(
+                "Location",
+                url("history") + "/graphiql?path=/graphql#fragment"
+            );
+            exchange.getResponseHeaders().set(
+                "X-Upstream-Uri",
+                url("history") + "/graphiql?path=/graphql#fragment"
+            );
+            respond(exchange, 302, "");
+            return;
+        }
+        if (service.equals("history")
+            && exchange.getRequestURI().getPath().equals("/graphiql/third-party")) {
+            exchange.getResponseHeaders().set(
+                "Location",
+                "https://public.example/elsewhere?x=1#fragment"
+            );
+            respond(exchange, 302, "");
+            return;
+        }
+        if (service.equals("history")
+            && exchange.getRequestURI().getPath().equals("/graphiql/protocol-relative")) {
+            exchange.getResponseHeaders().set(
+                "Location",
+                "//localhost:" + SERVERS.get("history").getAddress().getPort()
+                    + "/graphiql?path=/graphql#fragment"
+            );
+            respond(exchange, 302, "");
+            return;
+        }
+        if (service.equals("history")
+            && exchange.getRequestURI().getPath().equals("/graphiql/query-only")) {
+            exchange.getResponseHeaders().set("Location", "?path=/graphql");
+            respond(exchange, 302, "");
+            return;
+        }
+        if (service.equals("history")
+            && exchange.getRequestURI().getPath().equals("/graphiql/double-slash-path")) {
+            exchange.getResponseHeaders().set(
+                "Location",
+                url("history") + "//external.example/path"
+            );
+            respond(exchange, 302, "");
+            return;
+        }
+        if (service.equals("history")
+            && exchange.getRequestURI().getPath().equals("/graphiql/uppercase-host")) {
+            exchange.getResponseHeaders().set(
+                "Location",
+                "http://LOCALHOST:" + SERVERS.get("history").getAddress().getPort()
+                    + "/graphiql?path=/graphql"
+            );
+            respond(exchange, 302, "");
+            return;
+        }
+        if (service.equals("history")
+            && exchange.getRequestURI().getPath().equals("/graphiql/equivalent-port")) {
+            exchange.getResponseHeaders().set(
+                "Location",
+                "http://localhost:0" + SERVERS.get("history").getAddress().getPort()
+                    + "/graphiql?path=/graphql"
+            );
+            respond(exchange, 302, "");
+            return;
+        }
+        if (service.equals("history")
+            && exchange.getRequestURI().getPath().equals("/graphiql/user-info")) {
+            exchange.getResponseHeaders().set(
+                "Location",
+                "http://user@localhost:" + SERVERS.get("history").getAddress().getPort()
+                    + "/graphiql?path=/graphql"
+            );
+            respond(exchange, 302, "");
             return;
         }
         if (service.equals("scheduling")) {
