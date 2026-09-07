@@ -21,10 +21,10 @@ import org.springframework.web.server.ResponseStatusException;
 @Service
 public class AppointmentSchedulingService {
 
-    private static final String EVENT_TYPE = "AppointmentScheduled";
-    private static final String RESCHEDULED = "AppointmentRescheduled";
-    private static final String CANCELLED = "AppointmentCancelled";
-    private static final String COMPLETED = "AppointmentCompleted";
+    private static final String SCHEDULED_EVENT_TYPE = "AppointmentScheduled";
+    private static final String RESCHEDULED_EVENT_TYPE = "AppointmentRescheduled";
+    private static final String CANCELLED_EVENT_TYPE = "AppointmentCancelled";
+    private static final String COMPLETED_EVENT_TYPE = "AppointmentCompleted";
     private static final int EVENT_VERSION = 1;
 
     private final AppointmentRepository appointmentRepository;
@@ -75,15 +75,14 @@ public class AppointmentSchedulingService {
             doctor.name(),
             doctor.specialty()
         );
-        outboxEventWriter.append(
-            Aggregate.APPOINTMENT,
-            appointment.getId(),
-            EVENT_TYPE,
-            EVENT_VERSION,
-            now,
-            event
-        );
+        publish(appointment.getId(), SCHEDULED_EVENT_TYPE, now, event);
         return appointment;
+    }
+
+    private void publish(UUID appointmentId, String eventType, Instant occurredAt, Object data) {
+        outboxEventWriter.append(
+            Aggregate.APPOINTMENT, appointmentId, eventType, EVENT_VERSION, occurredAt, data
+        );
     }
 
     @Transactional
@@ -109,26 +108,19 @@ public class AppointmentSchedulingService {
 
         PatientSummary patient = participantDirectory.patient(saved.getPatientId());
         DoctorSummary doctor = participantDirectory.doctor(saved.getDoctorId());
-        outboxEventWriter.append(
-            Aggregate.APPOINTMENT,
+        publish(saved.getId(), RESCHEDULED_EVENT_TYPE, now, new AppointmentRescheduledEvent(
             saved.getId(),
-            RESCHEDULED,
-            EVENT_VERSION,
-            now,
-            new AppointmentRescheduledEvent(
-                saved.getId(),
-                saved.getPatientId(),
-                saved.getDoctorId(),
-                previousScheduledAt,
-                saved.getScheduledAt(),
-                saved.getStatus().name(),
-                saved.isFitIn(),
-                saved.getFitInReason(),
-                patient.name(),
-                doctor.name(),
-                doctor.specialty()
-            )
-        );
+            saved.getPatientId(),
+            saved.getDoctorId(),
+            previousScheduledAt,
+            saved.getScheduledAt(),
+            saved.getStatus().name(),
+            saved.isFitIn(),
+            saved.getFitInReason(),
+            patient.name(),
+            doctor.name(),
+            doctor.specialty()
+        ));
         return saved;
     }
 
@@ -139,21 +131,14 @@ public class AppointmentSchedulingService {
         appointment.cancel(now);
         appointmentRepository.saveAndFlush(appointment);
 
-        outboxEventWriter.append(
-            Aggregate.APPOINTMENT,
+        publish(appointment.getId(), CANCELLED_EVENT_TYPE, now, new AppointmentCancelledEvent(
             appointment.getId(),
-            CANCELLED,
-            EVENT_VERSION,
-            now,
-            new AppointmentCancelledEvent(
-                appointment.getId(),
-                appointment.getPatientId(),
-                appointment.getDoctorId(),
-                appointment.getScheduledAt(),
-                appointment.getStatus().name(),
-                appointment.getCancelledAt()
-            )
-        );
+            appointment.getPatientId(),
+            appointment.getDoctorId(),
+            appointment.getScheduledAt(),
+            appointment.getStatus().name(),
+            appointment.getCancelledAt()
+        ));
     }
 
     @Transactional
@@ -161,28 +146,19 @@ public class AppointmentSchedulingService {
         Appointment appointment = locked(id);
         Instant now = clock.instant();
         boolean changed = appointment.complete(now);
-        // Conclusao repetida nao muda nada, e um evento por chamada faria a projecao
-        // receber o mesmo fato com eventId novo, fora do alcance da idempotencia.
         if (!changed) {
             return false;
         }
         appointmentRepository.saveAndFlush(appointment);
 
-        outboxEventWriter.append(
-            Aggregate.APPOINTMENT,
+        publish(appointment.getId(), COMPLETED_EVENT_TYPE, now, new AppointmentCompletedEvent(
             appointment.getId(),
-            COMPLETED,
-            EVENT_VERSION,
-            now,
-            new AppointmentCompletedEvent(
-                appointment.getId(),
-                appointment.getPatientId(),
-                appointment.getDoctorId(),
-                appointment.getScheduledAt(),
-                appointment.getStatus().name(),
-                appointment.getCompletedAt()
-            )
-        );
+            appointment.getPatientId(),
+            appointment.getDoctorId(),
+            appointment.getScheduledAt(),
+            appointment.getStatus().name(),
+            appointment.getCompletedAt()
+        ));
         return true;
     }
 

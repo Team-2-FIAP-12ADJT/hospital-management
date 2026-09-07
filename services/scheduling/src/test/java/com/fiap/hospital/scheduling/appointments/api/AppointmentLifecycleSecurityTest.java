@@ -87,22 +87,41 @@ class AppointmentLifecycleSecurityTest {
     }
 
     @Test
-    void nurseRegistersButDoesNotEdit() throws Exception {
-        String appointmentId = scheduled(token("NURSE"));
+    void nurseAlsoRescheduleCancelsAndCompletes() throws Exception {
         String nurse = token("NURSE");
 
-        mockMvc.perform(post("/api/appointments/" + appointmentId + "/reschedule")
+        mockMvc.perform(post("/api/appointments/" + scheduled(nurse) + "/reschedule")
             .header("Authorization", "Bearer " + nurse)
+            .contentType(MediaType.APPLICATION_JSON)
+            .content(rescheduleBody(nextSlot())))
+            .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/appointments/" + scheduled(nurse) + "/cancel")
+            .header("Authorization", "Bearer " + nurse))
+            .andExpect(status().isNoContent());
+
+        mockMvc.perform(post("/api/appointments/" + scheduled(nurse) + "/complete")
+            .header("Authorization", "Bearer " + nurse))
+            .andExpect(status().isNoContent());
+    }
+
+    @Test
+    void anUnrecognizedRoleIsForbiddenOnEveryTransition() throws Exception {
+        String appointmentId = scheduled(token("DOCTOR"));
+        String admin = token("ADMIN");
+
+        mockMvc.perform(post("/api/appointments/" + appointmentId + "/reschedule")
+            .header("Authorization", "Bearer " + admin)
             .contentType(MediaType.APPLICATION_JSON)
             .content(rescheduleBody(nextSlot())))
             .andExpect(status().isForbidden());
 
         mockMvc.perform(post("/api/appointments/" + appointmentId + "/cancel")
-            .header("Authorization", "Bearer " + nurse))
+            .header("Authorization", "Bearer " + admin))
             .andExpect(status().isForbidden());
 
         mockMvc.perform(post("/api/appointments/" + appointmentId + "/complete")
-            .header("Authorization", "Bearer " + nurse))
+            .header("Authorization", "Bearer " + admin))
             .andExpect(status().isForbidden());
     }
 

@@ -56,10 +56,8 @@ public class AppointmentController {
             .body(new AppointmentResponse(appointment.getId()));
     }
 
-    // O enunciado dá ao enfermeiro o verbo de registrar consulta e ao médico o de
-    // editá-la; as três transições abaixo são a edição.
     @PostMapping("/{id}/reschedule")
-    @PreAuthorize("hasRole('DOCTOR')")
+    @PreAuthorize("hasAnyRole('DOCTOR', 'NURSE')")
     @Operation(summary = "Remarca uma consulta")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "Consulta remarcada"),
@@ -83,7 +81,7 @@ public class AppointmentController {
     }
 
     @PostMapping("/{id}/cancel")
-    @PreAuthorize("hasRole('DOCTOR')")
+    @PreAuthorize("hasAnyRole('DOCTOR', 'NURSE')")
     @Operation(summary = "Cancela uma consulta")
     @ApiResponses({
         @ApiResponse(responseCode = "204", description = "Consulta cancelada"),
@@ -98,7 +96,7 @@ public class AppointmentController {
     }
 
     @PostMapping("/{id}/complete")
-    @PreAuthorize("hasRole('DOCTOR')")
+    @PreAuthorize("hasAnyRole('DOCTOR', 'NURSE')")
     @Operation(
         summary = "Marca uma consulta como realizada",
         description = "Idempotente: repetir devolve 204 sem publicar segundo evento."

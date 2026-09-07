@@ -5,10 +5,6 @@ import java.time.Instant;
 import java.util.UUID;
 import tools.jackson.databind.annotation.JsonSerialize;
 
-/**
- * Consumido apenas pelo history: o lembrete já disparou antes da consulta
- * acontecer, e a conclusão posterior não muda nada nele.
- */
 public record AppointmentCompletedEvent(
     UUID appointmentId,
     UUID patientId,
