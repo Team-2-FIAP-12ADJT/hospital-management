@@ -250,12 +250,15 @@ services:
     depends_on:
       history-db:
         condition: service_healthy
+      kafka:
+        condition: service_healthy
     environment:
       HISTORY_DB_URL: ${HISTORY_DB_URL:-jdbc:postgresql://history-db:5432/history}
       POSTGRES_USER: ${POSTGRES_USER:-hospital}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-hospital}
       SERVER_PORT: ${SERVER_PORT:-8080}
       IDENTITY_JWKS_URI: ${IDENTITY_JWKS_URI:-http://identity:8080/.well-known/jwks.json}
+      KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:-kafka:9092}
       GATEWAY_PUBLIC_URL: ${GATEWAY_PUBLIC_URL:-http://localhost:${GATEWAY_PORT:-8080}}
     restart: unless-stopped
 
