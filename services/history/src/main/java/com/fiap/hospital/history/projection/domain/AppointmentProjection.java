@@ -58,6 +58,31 @@ public class AppointmentProjection {
     public AppointmentProjection() {
     }
 
+    public void applyScheduled(
+            UUID appointmentId,
+            UUID patientId,
+            UUID doctorId,
+            Instant scheduledAt,
+            boolean fitIn,
+            String fitInReason,
+            String patientName,
+            String doctorName,
+            String doctorSpecialty,
+            Instant appliedAt
+    ) {
+        this.appointmentId = appointmentId;
+        this.patientId = patientId;
+        this.doctorId = doctorId;
+        this.scheduledAt = scheduledAt;
+        this.status = AppointmentStatus.SCHEDULED;
+        this.fitIn = fitIn;
+        this.fitInReason = fitInReason;
+        this.patientName = patientName;
+        this.doctorName = doctorName;
+        this.doctorSpecialty = doctorSpecialty;
+        this.updatedAt = appliedAt;
+    }
+
     public UUID getAppointmentId() {
         return appointmentId;
     }
