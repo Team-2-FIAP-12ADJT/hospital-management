@@ -26,6 +26,8 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
 @Testcontainers
 class IdempotencyServiceIntegrationTest {
 
+    private static final String CONSUMER = "contact";
+
     @Container
     @ServiceConnection
     static PostgreSQLContainer postgres = new PostgreSQLContainer(
@@ -43,8 +45,8 @@ class IdempotencyServiceIntegrationTest {
         UUID eventId = UUID.randomUUID();
         AtomicInteger effects = new AtomicInteger();
 
-        service.process(eventId, effects::incrementAndGet);
-        service.process(eventId, effects::incrementAndGet);
+        service.process(CONSUMER, eventId, effects::incrementAndGet);
+        service.process(CONSUMER, eventId, effects::incrementAndGet);
 
         assertThat(effects).hasValue(1);
         assertThat(count(eventId)).isOne();
@@ -55,7 +57,7 @@ class IdempotencyServiceIntegrationTest {
         UUID eventId = UUID.randomUUID();
 
         assertThatThrownBy(() ->
-            service.process(eventId, () -> {
+            service.process(CONSUMER, eventId, () -> {
                 throw new IllegalStateException("effect failed");
             })
         ).isInstanceOf(IllegalStateException.class);
@@ -80,7 +82,7 @@ class IdempotencyServiceIntegrationTest {
             for (int i = 0; i < 2; i++) {
                 futures.add(executor.submit(() -> {
                     start.await(10, TimeUnit.SECONDS);
-                    service.process(eventId, effects::incrementAndGet);
+                    service.process(CONSUMER, eventId, effects::incrementAndGet);
                     return null;
                 }));
             }
@@ -91,6 +93,21 @@ class IdempotencyServiceIntegrationTest {
 
         assertThat(effects).hasValue(1);
         assertThat(count(eventId)).isOne();
+    }
+
+    @Test
+    void sameEventIsProcessedOncePerConsumer() {
+        UUID eventId = UUID.randomUUID();
+        AtomicInteger effects = new AtomicInteger();
+
+        service.process("smoke", eventId, effects::incrementAndGet);
+        service.process(CONSUMER, eventId, effects::incrementAndGet);
+        service.process(CONSUMER, eventId, effects::incrementAndGet);
+
+        assertThat(effects)
+            .as("cada consumidor processa o evento uma vez; um não descarta o do outro")
+            .hasValue(2);
+        assertThat(count(eventId)).isEqualTo(2);
     }
 
     private long count(UUID eventId) {

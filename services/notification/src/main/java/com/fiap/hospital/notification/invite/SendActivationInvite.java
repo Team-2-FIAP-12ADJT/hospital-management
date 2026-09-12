@@ -11,6 +11,8 @@ class SendActivationInvite {
 
     private static final Logger log = LoggerFactory.getLogger(SendActivationInvite.class);
 
+    private static final String CONSUMER = "invite";
+
     private final IdempotencyService idempotencyService;
     private final ActivationInviteMailer mailer;
 
@@ -23,7 +25,7 @@ class SendActivationInvite {
     }
 
     void send(ActivationInvite invite) {
-        idempotencyService.process(invite.eventId(), () -> {
+        idempotencyService.process(CONSUMER, invite.eventId(), () -> {
             try {
                 mailer.send(invite);
             } catch (MailException ex) {

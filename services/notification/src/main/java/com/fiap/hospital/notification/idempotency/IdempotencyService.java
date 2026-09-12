@@ -20,9 +20,9 @@ public class IdempotencyService {
     }
 
     @Transactional
-    public void process(UUID eventId, Runnable effect) {
-        if (repository.insertIfAbsent(eventId) == 0) {
-            log.info("duplicate event ignored eventId={}", eventId);
+    public void process(String consumer, UUID eventId, Runnable effect) {
+        if (repository.insertIfAbsent(eventId, consumer) == 0) {
+            log.info("duplicate event ignored consumer={} eventId={}", consumer, eventId);
             return;
         }
 
