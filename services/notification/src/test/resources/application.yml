@@ -7,6 +7,10 @@ spring:
   kafka:
     listener:
       auto-startup: false
+    admin:
+      # Sem broker no teste, o KafkaAdmin fica ~30s tentando criar os tópicos de
+      # DLT (auto-startup=false não desliga a administração de tópicos).
+      auto-create: false
   mail:
     host: 127.0.0.1
     port: 3025

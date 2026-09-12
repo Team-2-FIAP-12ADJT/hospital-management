@@ -36,7 +36,10 @@ class AccountEventConsumer {
         try {
             invite = parser.parse(envelopeJson);
         } catch (UnsupportedAccountEventException ex) {
-            log.info("tipo fora do convite de ativação, ignorado");
+            log.info(
+                "discarding unsupported event type outside the activation invite contract, partition={} offset={}",
+                partition, offset
+            );
             return;
         } catch (RuntimeException ex) {
             log.error(

@@ -36,13 +36,6 @@ class SendActivationInvite {
                     invite.userId()
                 );
                 return;
-            } catch (RuntimeException ex) {
-                log.error(
-                    "dropping activation invite eventId={} userId={} due to unexpected mailer failure",
-                    invite.eventId(),
-                    invite.userId()
-                );
-                return;
             }
             log.info(
                 "activation invite sent eventId={} userId={}",

@@ -138,19 +138,19 @@ class SendActivationInviteTest {
     }
 
     @Test
-    void falhaInesperadaNoMailerNaoInterrompeEnvioNemPerdeIdempotencia() {
+    void falhaInesperadaNoMailerPropagaParaOKafkaRetentarSemGravarIdempotencia() {
         UUID eventId = UUID.randomUUID();
         doThrow(new IllegalStateException("mailer exploded"))
             .when(mailSender)
             .send(any(SimpleMailMessage.class));
 
-        assertThatNoException().isThrownBy(() ->
+        assertThatThrownBy(() ->
             consumer.consume(AccountEventFixtures.userActivationRequested(
                 eventId, UUID.randomUUID(), "tok"
             ))
-        );
+        ).isInstanceOf(IllegalStateException.class);
 
-        assertThat(count(eventId)).isOne();
+        assertThat(count(eventId)).isZero();
     }
 
     @Test
