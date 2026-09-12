@@ -230,9 +230,9 @@ services:
       args:
         SERVICE: notification
     depends_on:
-      kafka:
-        condition: service_healthy
       notification-db:
+        condition: service_healthy
+      kafka:
         condition: service_healthy
       mailpit:
         condition: service_healthy
@@ -245,6 +245,7 @@ services:
       GATEWAY_PUBLIC_URL: ${GATEWAY_PUBLIC_URL:-http://localhost:${GATEWAY_PORT:-8080}}
       MAIL_HOST: ${MAIL_HOST:-mailpit}
       MAIL_PORT: ${MAIL_PORT:-1025}
+      MAIL_FROM: ${MAIL_FROM:-noreply@hospital.local}
       REMINDER_LEAD_TIME: ${REMINDER_LEAD_TIME:-PT24H}
       NOTIFICATION_SWEEP_INTERVAL: ${NOTIFICATION_SWEEP_INTERVAL:-PT15S}
       NOTIFICATION_MAX_ATTEMPTS: ${NOTIFICATION_MAX_ATTEMPTS:-10}
