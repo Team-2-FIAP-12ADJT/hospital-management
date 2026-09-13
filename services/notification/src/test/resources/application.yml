@@ -20,3 +20,15 @@ management:
   health:
     mail:
       enabled: false
+
+# O application.yml de teste substitui o de src/main por inteiro, então o bloco
+# `notification` precisa existir aqui também: sem ele o @Scheduled do
+# NotificationDispatcher não resolve ${notification.sweep-interval} e o contexto
+# não sobe. Valores iguais aos defaults de produção, de propósito.
+notification:
+  reminder-lead-time: PT24H
+  sweep-interval: PT15S
+  max-attempts: 10
+  dispatch-batch-size: 50
+  from-address: nao-responda@hospital.local
+  display-zone: America/Sao_Paulo

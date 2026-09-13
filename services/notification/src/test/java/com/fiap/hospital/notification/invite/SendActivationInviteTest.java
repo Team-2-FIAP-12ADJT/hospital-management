@@ -21,8 +21,8 @@ import org.springframework.boot.testcontainers.service.connection.ServiceConnect
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.mail.MailParseException;
 import org.springframework.mail.MailSendException;
+import org.springframework.mail.MailSender;
 import org.springframework.mail.SimpleMailMessage;
-import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -42,7 +42,7 @@ class SendActivationInviteTest {
     static PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:18-alpine");
 
     @MockitoBean
-    private JavaMailSender mailSender;
+    private MailSender mailSender;
 
     @Autowired
     private AccountEventConsumer consumer;

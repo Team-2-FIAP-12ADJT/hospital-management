@@ -22,9 +22,9 @@ class IdempotencyServiceTest {
     @Test
     void runsEffectWhenEventIsInserted() {
         UUID eventId = UUID.randomUUID();
-        when(repository.insertIfAbsent(eventId)).thenReturn(1);
+        when(repository.insertIfAbsent(eventId, "contact")).thenReturn(1);
 
-        new IdempotencyService(repository).process(eventId, effect);
+        new IdempotencyService(repository).process("contact", eventId, effect);
 
         verify(effect).run();
     }
@@ -32,9 +32,9 @@ class IdempotencyServiceTest {
     @Test
     void skipsEffectWhenEventAlreadyExists() {
         UUID eventId = UUID.randomUUID();
-        when(repository.insertIfAbsent(eventId)).thenReturn(0);
+        when(repository.insertIfAbsent(eventId, "contact")).thenReturn(0);
 
-        new IdempotencyService(repository).process(eventId, effect);
+        new IdempotencyService(repository).process("contact", eventId, effect);
 
         verifyNoInteractions(effect);
     }

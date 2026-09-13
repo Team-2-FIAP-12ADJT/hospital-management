@@ -1,4 +1,4 @@
-package com.fiap.hospital.notification.invite;
+package com.fiap.hospital.notification.mail;
 
 import static org.assertj.core.api.Assertions.assertThat;
 

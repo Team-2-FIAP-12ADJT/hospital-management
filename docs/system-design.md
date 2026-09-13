@@ -391,9 +391,11 @@ descarta o que já processou:
 
 ```sql
 CREATE TABLE processed_event (
-    event_id    UUID PRIMARY KEY,
+    event_id    UUID         NOT NULL,
     consumer    VARCHAR(50)  NOT NULL,
-    received_at TIMESTAMPTZ  NOT NULL DEFAULT now()
+    received_at TIMESTAMPTZ  NOT NULL DEFAULT now(),
+
+    PRIMARY KEY (event_id, consumer)
 );
 ```
 
@@ -672,6 +674,18 @@ o cenário que motivou a escolha de eventos explícitos no ADR-0005.
 
 Consulta marcada perto demais do horário não gera lembrete: o consumidor
 verifica, ao criar o Reminder, se a data de disparo já passou.
+
+A Confirmation atravessa **a mesma varredura**, com data de disparo igual ao
+instante do evento. O "agora" do §7.4 é, na prática, o próximo ciclo do
+agendador. É deliberado: o endereço de entrega vem da réplica de contato, que
+pode não ter chegado ainda, e enviar de dentro do consumidor deixaria a
+Confirmation sem a retentativa que o Reminder tem. Uma máquina de estado só,
+para as duas espécies, ao custo de alguns segundos de atraso.
+
+Esgotado o teto de tentativas, a linha **não muda de estado** — continua
+`PENDING` e para de ser varrida. O abandono é registrado em `ERROR`, porque sem
+isso um aviso abandonado e um aviso ainda na fila têm exatamente a mesma
+aparência no banco, que é a incompletude silenciosa que este documento recusa.
 
 #### 7.6 Leitura do histórico
 

@@ -1,6 +1,7 @@
 package com.fiap.hospital.notification.invite;
 
 import com.fiap.hospital.notification.idempotency.IdempotencyService;
+import com.fiap.hospital.notification.mail.MailFailure;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.mail.MailException;
@@ -10,6 +11,8 @@ import org.springframework.stereotype.Service;
 class SendActivationInvite {
 
     private static final Logger log = LoggerFactory.getLogger(SendActivationInvite.class);
+
+    private static final String CONSUMER = "invite";
 
     private final IdempotencyService idempotencyService;
     private final ActivationInviteMailer mailer;
@@ -23,7 +26,7 @@ class SendActivationInvite {
     }
 
     void send(ActivationInvite invite) {
-        idempotencyService.process(invite.eventId(), () -> {
+        idempotencyService.process(CONSUMER, invite.eventId(), () -> {
             try {
                 mailer.send(invite);
             } catch (MailException ex) {
