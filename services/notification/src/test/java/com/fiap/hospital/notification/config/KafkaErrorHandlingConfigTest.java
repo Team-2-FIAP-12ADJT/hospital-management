@@ -39,6 +39,15 @@ class KafkaErrorHandlingConfigTest {
     }
 
     @Test
+    void appointmentEventDeadLetterTopicIsDeclaredWithSinglePartitionAndReplica() {
+        NewTopic topic = new KafkaErrorHandlingConfig().appointmentEventDeadLetterTopic();
+
+        assertThat(topic.name()).isEqualTo("hospital.appointment.DLT");
+        assertThat(topic.numPartitions()).isEqualTo(1);
+        assertThat(topic.replicationFactor()).isEqualTo((short) 1);
+    }
+
+    @Test
     void recovererSendsAccountEventFailureToItsOwnDeadLetterTopic() {
         @SuppressWarnings("unchecked")
         KafkaTemplate<Object, Object> kafkaTemplate = mock(KafkaTemplate.class);

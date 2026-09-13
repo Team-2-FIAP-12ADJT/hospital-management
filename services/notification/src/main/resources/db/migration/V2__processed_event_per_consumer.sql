@@ -16,5 +16,14 @@ ALTER TABLE public.processed_event
 ALTER TABLE public.processed_event
     DROP CONSTRAINT processed_event_pkey;
 
+-- O único fato histórico disponível é o consumidor antigo. Duplicar seus
+-- eventIds para invite é mais amplo que a verdade, mas seguro porque os
+-- consumidores leem tópicos diferentes, com UUIDs disjuntos; isso preserva a
+-- deduplicação de invite para qualquer ativação histórica.
+INSERT INTO public.processed_event (event_id, consumer)
+SELECT event_id, 'invite'
+FROM public.processed_event
+WHERE consumer = 'smoke';
+
 ALTER TABLE public.processed_event
     ADD CONSTRAINT processed_event_pkey PRIMARY KEY (event_id, consumer);

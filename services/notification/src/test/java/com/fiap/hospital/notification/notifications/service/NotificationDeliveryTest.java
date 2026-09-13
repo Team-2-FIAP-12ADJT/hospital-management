@@ -1,6 +1,7 @@
 package com.fiap.hospital.notification.notifications.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doThrow;
@@ -32,6 +33,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.slf4j.LoggerFactory;
+import org.springframework.mail.MailParseException;
+import org.springframework.mail.MailSendException;
 
 @ExtendWith(MockitoExtension.class)
 class NotificationDeliveryTest {
@@ -78,20 +81,52 @@ class NotificationDeliveryTest {
     }
 
     @Test
-    void countsTheAttemptAndKeepsPendingWhenSendingFails() throws Exception {
+    void propagatesUnexpectedSendingFailuresWithoutRecordingAnAttempt() throws Exception {
         Notification notification = confirmation();
         when(notifications.findById(notification.getId())).thenReturn(Optional.of(notification));
         when(contacts.findById(notification.getPatientId()))
             .thenReturn(Optional.of(contactWith("marcos@exemplo.com")));
         doThrow(new IllegalStateException("smtp down")).when(mailer).send(any(), anyString());
 
-        delivery().deliver(notification.getId());
+        assertThatThrownBy(() -> delivery().deliver(notification.getId()))
+            .isInstanceOf(IllegalStateException.class)
+            .hasMessage("smtp down");
 
         assertThat(notification.getStatus())
-            .as("falha de envio não consome a notificação — a varredura tenta de novo")
+            .as("falha inesperada não deve ser tratada como retry de entrega")
             .isEqualTo(NotificationStatus.PENDING);
-        assertThat(notification.getAttempts()).isEqualTo((short) 1);
+        assertThat(notification.getAttempts()).isZero();
         assertThat(notification.getSentAt()).isNull();
+    }
+
+    @Test
+    void countsTransientSendingFailuresAndLeavesTheNotificationPending() throws Exception {
+        Notification notification = confirmation();
+        when(notifications.findById(notification.getId())).thenReturn(Optional.of(notification));
+        when(contacts.findById(notification.getPatientId()))
+            .thenReturn(Optional.of(contactWith("marcos@exemplo.com")));
+        doThrow(new MailSendException("smtp down")).when(mailer).send(any(), anyString());
+
+        delivery().deliver(notification.getId());
+
+        assertThat(notification.getStatus()).isEqualTo(NotificationStatus.PENDING);
+        assertThat(notification.getAttempts()).isEqualTo((short) 1);
+        verify(notifications).save(notification);
+    }
+
+    @Test
+    void marksPermanentSendingFailuresAsFailedWithoutBurningTheAttemptCounter() throws Exception {
+        Notification notification = confirmation();
+        when(notifications.findById(notification.getId())).thenReturn(Optional.of(notification));
+        when(contacts.findById(notification.getPatientId()))
+            .thenReturn(Optional.of(contactWith("marcos@exemplo.com")));
+        doThrow(new MailParseException("invalid address")).when(mailer).send(any(), anyString());
+
+        delivery().deliver(notification.getId());
+
+        assertThat(notification.getStatus()).isEqualTo(NotificationStatus.FAILED);
+        assertThat(notification.getAttempts()).isZero();
+        verify(notifications).save(notification);
     }
 
     @Test
@@ -117,7 +152,7 @@ class NotificationDeliveryTest {
     }
 
     @Test
-    void stopsRetryingOnceTheAttemptCapIsReached() {
+    void abandonsTransientFailuresOnceTheAttemptCapIsReached() {
         Notification notification = confirmation();
         notification.recordFailedAttempt();
         notification.recordFailedAttempt();
@@ -130,12 +165,11 @@ class NotificationDeliveryTest {
             .as("a terceira tentativa atinge o teto")
             .isEqualTo(MAX_ATTEMPTS);
         assertThat(notification.getStatus())
-            .as("o teto não muda o estado — a linha segue PENDING e visível")
-            .isEqualTo(NotificationStatus.PENDING);
+            .isEqualTo(NotificationStatus.ABANDONED);
     }
 
     @Test
-    void abandoningANotificationIsLoggedAtErrorBecauseTheStateDoesNotChange() {
+    void abandoningANotificationIsLoggedAtError() {
         Notification notification = confirmation();
         notification.recordFailedAttempt();
         notification.recordFailedAttempt();
@@ -146,10 +180,10 @@ class NotificationDeliveryTest {
             delivery().deliver(notification.getId());
 
             assertThat(captured.events())
-                .as("sem ERROR no esgotamento, abandonada e enfileirada ficam idênticas")
+                .as("o abandono precisa ficar visível no log")
                 .anySatisfy(event -> {
                     assertThat(event.getLevel()).isEqualTo(Level.ERROR);
-                    assertThat(event.getFormattedMessage()).contains("giving up on notification");
+                    assertThat(event.getFormattedMessage()).contains("abandoning notification");
                 });
         }
     }

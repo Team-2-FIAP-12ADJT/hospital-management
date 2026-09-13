@@ -37,6 +37,11 @@ class KafkaErrorHandlingConfig {
     }
 
     @Bean
+    NewTopic appointmentEventDeadLetterTopic() {
+        return deadLetterTopic("hospital.appointment");
+    }
+
+    @Bean
     DefaultErrorHandler kafkaErrorHandler(KafkaTemplate<?, ?> kafkaTemplate) {
         return new DefaultErrorHandler(deadLetterRecoverer(kafkaTemplate), backOff());
     }

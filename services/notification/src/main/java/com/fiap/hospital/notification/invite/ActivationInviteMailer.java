@@ -1,19 +1,19 @@
 package com.fiap.hospital.notification.invite;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.mail.MailSender;
 import org.springframework.mail.SimpleMailMessage;
-import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.stereotype.Component;
 
 @Component
 class ActivationInviteMailer {
 
-    private final JavaMailSender mailSender;
+    private final MailSender mailSender;
     private final String from;
     private final String activateUrl;
 
     ActivationInviteMailer(
-        JavaMailSender mailSender,
+        MailSender mailSender,
         @Value("${MAIL_FROM:noreply@hospital.local}") String from,
         @Value("${GATEWAY_PUBLIC_URL:http://localhost:8080}") String gatewayPublicUrl
     ) {

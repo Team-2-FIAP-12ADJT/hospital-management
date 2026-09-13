@@ -9,14 +9,17 @@ import com.fiap.hospital.notification.notifications.domain.NotificationStatus;
 import com.fiap.hospital.notification.notifications.repository.ContactReplicaRepository;
 import com.fiap.hospital.notification.notifications.repository.NotificationRepository;
 import com.fiap.hospital.notification.notifications.service.NotificationDispatcher;
+import com.fiap.hospital.notification.notifications.service.NotificationDelivery;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.CompletableFuture;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -37,7 +40,8 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
     "spring.kafka.listener.auto-startup=false",
     "notification.sweep-interval=PT1H",
     "notification.reminder-lead-time=PT24H",
-    "notification.max-attempts=3"
+    "notification.max-attempts=3",
+    "notification.dispatch-batch-size=2"
 })
 @Testcontainers
 class AppointmentNotificationsIntegrationTest {
@@ -58,6 +62,9 @@ class AppointmentNotificationsIntegrationTest {
     private NotificationDispatcher dispatcher;
 
     @Autowired
+    private NotificationDelivery delivery;
+
+    @Autowired
     private NotificationRepository notifications;
 
     @Autowired
@@ -76,6 +83,7 @@ class AppointmentNotificationsIntegrationTest {
     void reset() {
         notifications.deleteAll();
         mailSender.sent().clear();
+        mailSender.clearUnexpectedFailure();
         clock.set(NOW);
     }
 
@@ -142,7 +150,29 @@ class AppointmentNotificationsIntegrationTest {
 
         assertThat(mailSender.sent())
             .as("o lembrete sai para o endereço corrigido, não para o do cadastro")
-            .allSatisfy(message -> assertThat(message.getTo()).containsExactly("novo@exemplo.com"));
+            .anySatisfy(message -> {
+                assertThat(message.getSubject()).isEqualTo("Lembrete: sua consulta está próxima");
+                assertThat(message.getTo()).containsExactly("novo@exemplo.com");
+            });
+        assertThat(statusOf(NotificationKind.REMINDER)).isEqualTo(NotificationStatus.SENT);
+    }
+
+    @Test
+    void concurrentDeliverySendsTheSameNotificationOnlyOnce() {
+        UUID patientId = UUID.randomUUID();
+        registerContact(patientId, "marcos@exemplo.com");
+        scheduleAppointment(UUID.randomUUID(), patientId);
+        mailSender.sent().clear();
+        clock.set(EventFixtures.SCHEDULED_AT.minus(Duration.ofHours(24)));
+
+        UUID reminderId = byKind(NotificationKind.REMINDER).getId();
+        CompletableFuture.allOf(
+            CompletableFuture.runAsync(() -> delivery.deliver(reminderId)),
+            CompletableFuture.runAsync(() -> delivery.deliver(reminderId))
+        ).join();
+
+        assertThat(mailSender.sent()).hasSize(1);
+        assertThat(statusOf(NotificationKind.REMINDER)).isEqualTo(NotificationStatus.SENT);
     }
 
     @Test
@@ -168,6 +198,89 @@ class AppointmentNotificationsIntegrationTest {
         assertThat(byKind(NotificationKind.CONFIRMATION).getAttempts())
             .as("o teto de tentativas para a varredura em vez de tentar para sempre")
             .isEqualTo((short) 3);
+        assertThat(byKind(NotificationKind.CONFIRMATION).getStatus())
+            .isEqualTo(NotificationStatus.ABANDONED);
+    }
+
+    @Test
+    void repeatedUnexpectedFailureIsAbandonedAfterRollbackSafeAttempts() {
+        UUID poisonPatient = UUID.randomUUID();
+        UUID secondPoisonPatient = UUID.randomUUID();
+        UUID healthyPatient = UUID.randomUUID();
+        registerContact(poisonPatient, "poison@exemplo.com");
+        registerContact(secondPoisonPatient, "poison-2@exemplo.com");
+        registerContact(healthyPatient, "saudavel@exemplo.com");
+        mailSender.failUnexpectedlyFor("poison@exemplo.com");
+        mailSender.failUnexpectedlyFor("poison-2@exemplo.com");
+        scheduleAppointment(UUID.randomUUID(), poisonPatient);
+        scheduleAppointment(UUID.randomUUID(), secondPoisonPatient);
+        clock.set(NOW.plusSeconds(1));
+        scheduleAppointment(UUID.randomUUID(), healthyPatient);
+
+        dispatcher.sweep();
+        dispatcher.sweep();
+        dispatcher.sweep();
+        dispatcher.sweep();
+
+        Notification poison = notifications.findAll().stream()
+            .filter(notification -> notification.getPatientId().equals(poisonPatient)
+                && notification.getKind() == NotificationKind.CONFIRMATION)
+            .findFirst()
+            .orElseThrow();
+        Notification healthy = notifications.findAll().stream()
+            .filter(notification -> notification.getPatientId().equals(healthyPatient)
+                && notification.getKind() == NotificationKind.CONFIRMATION)
+            .findFirst()
+            .orElseThrow();
+        assertThat(poison.getAttempts()).isEqualTo((short) 3);
+        assertThat(poison.getStatus()).isEqualTo(NotificationStatus.ABANDONED);
+        assertThat(healthy.getStatus()).isEqualTo(NotificationStatus.SENT);
+        assertThat(mailSender.sent()).anySatisfy(message ->
+            assertThat(message.getTo()).containsExactly("saudavel@exemplo.com")
+        );
+    }
+
+    @Test
+    void healthyNotificationProgressesAfterEarlierPoisonedNotificationsAreAbandoned() {
+        UUID firstPoisonPatient = UUID.randomUUID();
+        UUID secondPoisonPatient = UUID.randomUUID();
+        UUID healthyPatient = UUID.randomUUID();
+        registerContact(firstPoisonPatient, "poison-1@exemplo.com");
+        registerContact(secondPoisonPatient, "poison-2@exemplo.com");
+        registerContact(healthyPatient, "saudavel@exemplo.com");
+        mailSender.failUnexpectedlyFor("poison-1@exemplo.com");
+        mailSender.failUnexpectedlyFor("poison-2@exemplo.com");
+
+        clock.set(EventFixtures.SCHEDULED_AT.minus(Duration.ofHours(3)));
+        scheduleAppointment(UUID.randomUUID(), firstPoisonPatient);
+        clock.set(EventFixtures.SCHEDULED_AT.minus(Duration.ofHours(2)));
+        scheduleAppointment(UUID.randomUUID(), secondPoisonPatient);
+        clock.set(EventFixtures.SCHEDULED_AT.minus(Duration.ofHours(1)));
+        scheduleAppointment(UUID.randomUUID(), healthyPatient);
+
+        dispatcher.sweep();
+        assertThat(mailSender.sent()).isEmpty();
+        assertThat(statusOfForPatient(firstPoisonPatient, NotificationKind.CONFIRMATION))
+            .isEqualTo(NotificationStatus.PENDING);
+        assertThat(statusOfForPatient(healthyPatient, NotificationKind.CONFIRMATION))
+            .isEqualTo(NotificationStatus.PENDING);
+
+        dispatcher.sweep();
+        dispatcher.sweep();
+
+        assertThat(statusOfForPatient(firstPoisonPatient, NotificationKind.CONFIRMATION))
+            .isEqualTo(NotificationStatus.ABANDONED);
+        assertThat(statusOfForPatient(secondPoisonPatient, NotificationKind.CONFIRMATION))
+            .isEqualTo(NotificationStatus.ABANDONED);
+        assertThat(mailSender.sent()).isEmpty();
+
+        dispatcher.sweep();
+
+        assertThat(statusOfForPatient(healthyPatient, NotificationKind.CONFIRMATION))
+            .isEqualTo(NotificationStatus.SENT);
+        assertThat(mailSender.sent()).anySatisfy(message ->
+            assertThat(message.getTo()).containsExactly("saudavel@exemplo.com")
+        );
     }
 
     @Test
@@ -251,6 +364,15 @@ class AppointmentNotificationsIntegrationTest {
         return byKind(kind).getStatus();
     }
 
+    private NotificationStatus statusOfForPatient(UUID patientId, NotificationKind kind) {
+        return notifications.findAll().stream()
+            .filter(notification -> notification.getPatientId().equals(patientId))
+            .filter(notification -> notification.getKind() == kind)
+            .findFirst()
+            .orElseThrow()
+            .getStatus();
+    }
+
     private Notification byKind(NotificationKind kind) {
         return notifications.findAll().stream()
             .filter(notification -> notification.getKind() == kind)
@@ -277,13 +399,27 @@ class AppointmentNotificationsIntegrationTest {
     static final class RecordingMailSender implements MailSender {
 
         private final List<SimpleMailMessage> sent = new CopyOnWriteArrayList<>();
+        private final Set<String> unexpectedFailureRecipients = new java.util.concurrent.CopyOnWriteArraySet<>();
 
         List<SimpleMailMessage> sent() {
             return sent;
         }
 
+        void failUnexpectedlyFor(String recipient) {
+            unexpectedFailureRecipients.add(recipient);
+        }
+
+        void clearUnexpectedFailure() {
+            unexpectedFailureRecipients.clear();
+        }
+
         @Override
         public void send(SimpleMailMessage message) {
+            if (message.getTo() != null
+                && unexpectedFailureRecipients.stream()
+                    .anyMatch(java.util.Arrays.asList(message.getTo())::contains)) {
+                throw new IllegalStateException("unexpected mailer failure");
+            }
             sent.add(message);
         }
 

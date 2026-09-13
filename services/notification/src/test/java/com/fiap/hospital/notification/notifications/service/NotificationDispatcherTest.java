@@ -3,6 +3,8 @@ package com.fiap.hospital.notification.notifications.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyShort;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -33,6 +35,9 @@ class NotificationDispatcherTest {
     @Mock
     private NotificationDelivery delivery;
 
+    @Mock
+    private NotificationFailureRecorder failureRecorder;
+
     @Test
     void asksForDueNotificationsUnderTheAttemptCapAndBatchSize() {
         when(notifications.findDue(any(), anyShort(), any())).thenReturn(List.of());
@@ -61,10 +66,60 @@ class NotificationDispatcherTest {
         verify(delivery).deliver(second.getId());
     }
 
+    @Test
+    void continuesDeliveringTheBatchWhenOneNotificationHasAnUnexpectedFailure() {
+        Notification first = confirmation();
+        Notification second = confirmation();
+        when(notifications.findDue(any(), anyShort(), any())).thenReturn(List.of(first, second));
+        doThrow(new IllegalStateException("mailer exploded")).when(delivery).deliver(first.getId());
+
+        dispatcher().sweep();
+
+        verify(delivery).deliver(first.getId());
+        verify(delivery).deliver(second.getId());
+        verify(failureRecorder).recordUnexpectedFailure(first.getId());
+    }
+
+    @Test
+    void retriesThePoisonedNotificationOnTheNextSweepWithoutBlockingTheBatch() {
+        Notification first = confirmation();
+        Notification second = confirmation();
+        when(notifications.findDue(any(), anyShort(), any())).thenReturn(List.of(first, second));
+        doThrow(new IllegalStateException("mailer exploded")).when(delivery).deliver(first.getId());
+
+        dispatcher().sweep();
+        dispatcher().sweep();
+
+        verify(delivery, times(2)).deliver(first.getId());
+        verify(delivery, times(2)).deliver(second.getId());
+        verify(failureRecorder, times(2)).recordUnexpectedFailure(first.getId());
+    }
+
+    @Test
+    void continuesDeliveringTheBatchWhenFailureRecordingFails() {
+        Notification first = confirmation();
+        Notification second = confirmation();
+        when(notifications.findDue(any(), anyShort(), any())).thenReturn(List.of(first, second));
+        doThrow(new IllegalStateException("mailer exploded")).when(delivery).deliver(first.getId());
+        doThrow(new IllegalStateException("database unavailable"))
+            .when(failureRecorder).recordUnexpectedFailure(first.getId());
+
+        dispatcher().sweep();
+
+        verify(delivery).deliver(first.getId());
+        verify(failureRecorder).recordUnexpectedFailure(first.getId());
+        verify(delivery).deliver(second.getId());
+    }
+
     private NotificationDispatcher dispatcher() {
+        return dispatcher(delivery);
+    }
+
+    private NotificationDispatcher dispatcher(NotificationDelivery notificationDelivery) {
         return new NotificationDispatcher(
             notifications,
-            delivery,
+            notificationDelivery,
+            failureRecorder,
             new NotificationProperties(
                 Duration.ofHours(24), (short) 3, 2,
                 "nao-responda@hospital.local", ZoneId.from(ZoneOffset.UTC)

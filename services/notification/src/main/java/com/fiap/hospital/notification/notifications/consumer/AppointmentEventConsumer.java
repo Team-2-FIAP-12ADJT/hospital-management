@@ -26,25 +26,15 @@ public class AppointmentEventConsumer {
 
     @KafkaListener(topics = "hospital.appointment", groupId = "notification-appointment")
     public void receive(ConsumerRecord<String, String> record) {
-        consume(record.value(), record.partition(), record.offset());
+        consume(record.value());
     }
 
     void consume(String envelopeJson) {
-        consume(envelopeJson, -1, -1L);
-    }
-
-    private void consume(String envelopeJson, int partition, long offset) {
         ScheduledAppointment appointment;
         try {
             appointment = parser.parse(envelopeJson);
         } catch (UnsupportedEventException exception) {
             log.info("tipo fora da notificação de agendamento, ignorado: {}", exception.getMessage());
-            return;
-        } catch (RuntimeException exception) {
-            log.error(
-                "discarding unparseable message on hospital.appointment, partition={} offset={}: {}",
-                partition, offset, exception.getMessage()
-            );
             return;
         }
         scheduleNotifications.schedule(appointment);

@@ -34,7 +34,7 @@ CREATE TABLE notification (
     CONSTRAINT ck_notification_kind
         CHECK (kind IN ('CONFIRMATION', 'REMINDER')),
     CONSTRAINT ck_notification_status
-        CHECK (status IN ('PENDING', 'SENT', 'CANCELLED')),
+        CHECK (status IN ('PENDING', 'SENT', 'CANCELLED', 'FAILED', 'ABANDONED')),
     CONSTRAINT ck_notification_sent_at
         CHECK ((status = 'SENT') = (sent_at IS NOT NULL))
 );

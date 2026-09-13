@@ -133,6 +133,16 @@ public class Notification implements Persistable<UUID> {
         this.attempts++;
     }
 
+    public void markFailed() {
+        requireStatus(NotificationStatus.PENDING);
+        this.status = NotificationStatus.FAILED;
+    }
+
+    public void markAbandoned() {
+        requireStatus(NotificationStatus.PENDING);
+        this.status = NotificationStatus.ABANDONED;
+    }
+
     private void requireStatus(NotificationStatus expected) {
         if (status != expected) {
             throw new IllegalStateException("notification is not " + expected);

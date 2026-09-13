@@ -1,4 +1,4 @@
-package com.fiap.hospital.notification.invite;
+package com.fiap.hospital.notification.mail;
 
 import jakarta.mail.SendFailedException;
 import jakarta.mail.internet.AddressException;
@@ -13,17 +13,13 @@ import org.springframework.mail.MailException;
 import org.springframework.mail.MailParseException;
 import org.springframework.mail.MailSendException;
 
-final class MailFailure {
+public final class MailFailure {
 
-    // Matches a 3-digit SMTP reply code only at the start of the message or at the
-    // start of a line within it (Pattern.MULTILINE ^), which is where a real SMTP
-    // reply code appears — never as a substring anywhere else in the text (e.g. a
-    // hostname, a port number, or "on port 465" trailing a bounce message).
     private static final Pattern SMTP_REPLY_CODE = Pattern.compile("(?m)^([2-5]\\d{2})(?=[\\s-]|$)");
 
     private MailFailure() {}
 
-    static boolean isTransient(MailException ex) {
+    public static boolean isTransient(MailException ex) {
         if (ex instanceof MailParseException || ex instanceof MailAuthenticationException) {
             return false;
         }
@@ -47,14 +43,7 @@ final class MailFailure {
 
     /**
      * Classifies an SMTP failure as permanent (true), transient (false), or
-     * unclassifiable by this method (null). Rules, in precedence order:
-     * (a) an AddressException anywhere in the cause chain is always permanent;
-     * (b) a SendFailedException with at least one invalid address is permanent;
-     * (c) a 4xx SMTP reply code anywhere in the chain is transient, and this
-     *     takes precedence over (d);
-     * (d) a 5xx SMTP reply code anywhere in the chain is permanent;
-     * (e) a SendFailedException with no recognizable reply code and no invalid
-     *     address is transient, since retrying is the safe default.
+     * unclassifiable by this method (null).
      */
     private static Boolean classify(Throwable start) {
         for (Throwable cause = start; cause != null; cause = cause.getCause()) {
