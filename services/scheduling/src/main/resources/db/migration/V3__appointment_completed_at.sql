@@ -8,6 +8,11 @@
 ALTER TABLE scheduling.appointment
     ADD COLUMN completed_at TIMESTAMPTZ;
 
+-- `NOT VALID` porque a varredura das linhas existentes recusaria qualquer
+-- consulta já COMPLETED, que nasce aqui com `completed_at` nulo e não tem
+-- instante verdadeiro para receber — a migração abortaria e o serviço não
+-- subiria. A invariante vale onde ela protege o contrato: inserção e
+-- atualização daqui em diante.
 ALTER TABLE scheduling.appointment
     ADD CONSTRAINT ck_appointment_completed_at
-        CHECK ((status = 'COMPLETED') = (completed_at IS NOT NULL));
+        CHECK ((status = 'COMPLETED') = (completed_at IS NOT NULL)) NOT VALID;
