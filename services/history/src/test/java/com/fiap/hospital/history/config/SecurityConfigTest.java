@@ -90,6 +90,7 @@ class SecurityConfigTest {
             Customizer<OAuth2ResourceServerConfigurer<HttpSecurity>> customizer = invocation.getArgument(0);
             OAuth2ResourceServerConfigurer<HttpSecurity> oauth2 = mock(OAuth2ResourceServerConfigurer.class);
             when(oauth2.authenticationEntryPoint(any())).thenReturn(oauth2);
+            when(oauth2.accessDeniedHandler(any())).thenReturn(oauth2);
             when(oauth2.jwt(any())).thenAnswer(jwtInvocation -> {
                 Customizer<OAuth2ResourceServerConfigurer<HttpSecurity>.JwtConfigurer> jwtCustomizer =
                         jwtInvocation.getArgument(0);
@@ -106,8 +107,9 @@ class SecurityConfigTest {
         when(http.build()).thenReturn(chain);
 
         ProblemDetailAuthenticationEntryPoint entryPoint = mock(ProblemDetailAuthenticationEntryPoint.class);
+        ProblemDetailAccessDeniedHandler accessDeniedHandler = mock(ProblemDetailAccessDeniedHandler.class);
         DefaultSecurityFilterChain built =
-            (DefaultSecurityFilterChain) securityConfig.filterChain(http, entryPoint);
+            (DefaultSecurityFilterChain) securityConfig.filterChain(http, entryPoint, accessDeniedHandler);
         assertSame(chain, built);
         assertNotNull(built);
     }

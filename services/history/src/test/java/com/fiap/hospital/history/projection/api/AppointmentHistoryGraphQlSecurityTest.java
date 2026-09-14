@@ -326,6 +326,22 @@ class AppointmentHistoryGraphQlSecurityTest {
     }
 
     @Test
+    void valid_token_on_denied_path_receives_forbidden_problem_detail() throws Exception {
+        String token = issueToken(UUID.randomUUID(), "PATIENT");
+
+        mockMvc
+            .perform(get("/denied").header("Authorization", "Bearer " + token))
+            .andExpect(status().isForbidden())
+            .andExpect(content().contentTypeCompatibleWith("application/problem+json"))
+            .andExpect(jsonPath("$.status").value(403))
+            .andExpect(jsonPath("$.title").value("Acesso negado"))
+            .andExpect(jsonPath("$.detail").value(
+                "Acesso negado. Você não tem permissão para acessar este recurso."
+            ))
+            .andExpect(jsonPath("$.instance").value("/denied"));
+    }
+
+    @Test
     void patient_cannot_use_patientId_argument_to_read_another_patient() throws Exception {
         String token = issueToken(UUID.randomUUID(), "PATIENT");
         String query = "{ appointments(patientId: \"%s\", page: 1, size: 10) { totalElements } }"
