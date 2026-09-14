@@ -14,6 +14,7 @@ import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
 import org.springframework.security.oauth2.core.OAuth2Error;
 import org.springframework.security.oauth2.server.resource.InvalidBearerTokenException;
+import org.springframework.security.oauth2.server.resource.web.BearerTokenAuthenticationEntryPoint;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
@@ -31,7 +32,7 @@ class ProblemDetailAuthenticationEntryPointTest {
 
         assertEquals(401, response.getStatus());
         assertTrue(response.getContentType().startsWith("application/problem+json"));
-        assertEquals("Bearer", response.getHeader(HttpHeaders.WWW_AUTHENTICATE));
+        assertTrue(response.getHeader(HttpHeaders.WWW_AUTHENTICATE).startsWith("Bearer "));
 
         JsonNode body = mapper.readTree(response.getContentAsByteArray());
         assertEquals(401, body.get("status").asInt());
@@ -71,7 +72,8 @@ class ProblemDetailAuthenticationEntryPointTest {
         );
 
         String header = response.getHeader(HttpHeaders.WWW_AUTHENTICATE);
-        assertEquals("Bearer error=\"invalid_token\"", header);
+        assertTrue(header.startsWith("Bearer error=\"invalid_token\""));
+        assertFalse(header.contains("error_description"));
 
         JsonNode body = mapper.readTree(response.getContentAsByteArray());
         assertTrue(body.get("detail").asString().contains("inválido"));
@@ -84,8 +86,31 @@ class ProblemDetailAuthenticationEntryPointTest {
         );
 
         String header = response.getHeader(HttpHeaders.WWW_AUTHENTICATE);
-        assertEquals("Bearer error=\"invalid_token\"", header);
+        assertTrue(header.startsWith("Bearer error=\"invalid_token\""));
         assertFalse(header.contains("error_description"));
+    }
+
+    @Test
+    void preservesBearerErrorUriAndResourceMetadata() throws IOException {
+        OAuth2AuthenticationException exception = new OAuth2AuthenticationException(
+            new OAuth2Error(
+                "invalid_token",
+                "Invalid token",
+                "https://example.test/errors/invalid-token"
+            )
+        );
+        MockHttpServletRequest request = new MockHttpServletRequest("POST", "/graphql");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        entryPoint.commence(request, response, exception);
+
+        MockHttpServletResponse reference = new MockHttpServletResponse();
+        new BearerTokenAuthenticationEntryPoint().commence(request, reference, exception);
+        String header = response.getHeader(HttpHeaders.WWW_AUTHENTICATE);
+        String referenceHeader = reference.getHeader(HttpHeaders.WWW_AUTHENTICATE);
+        assertTrue(header.contains("error_uri=\"https://example.test/errors/invalid-token\""));
+        assertTrue(header.contains("resource_metadata="));
+        assertEquals(referenceHeader, header);
     }
 
     private MockHttpServletResponse commence(AuthenticationException exception) throws IOException {
