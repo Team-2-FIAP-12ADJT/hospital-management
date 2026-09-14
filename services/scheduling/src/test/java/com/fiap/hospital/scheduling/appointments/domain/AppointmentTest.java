@@ -67,12 +67,19 @@ class AppointmentTest {
             .isEqualTo(Instant.parse("2026-09-05T22:00:00.123Z"));
         assertThatThrownBy(() -> appointment.reschedule(FUTURE, false, null, NOW, false))
             .isInstanceOf(IllegalStateException.class);
-        assertThatThrownBy(appointment::complete)
+        assertThatThrownBy(() -> appointment.complete(NOW))
             .isInstanceOf(IllegalStateException.class);
 
         Appointment completable = schedule(false, null, false);
-        assertThat(completable.complete()).isTrue();
-        assertThat(completable.complete()).isFalse();
+        assertThat(completable.complete(NOW)).isTrue();
+        assertThat(completable.getCompletedAt())
+            .isEqualTo(Instant.parse("2026-09-05T22:00:00.123Z"));
+        assertThat(completable.complete(NOW.plusSeconds(60)))
+            .as("conclusao repetida nao muda nada e nao publica segundo evento")
+            .isFalse();
+        assertThat(completable.getCompletedAt())
+            .as("o instante da conclusao e o da primeira, nao o da repeticao")
+            .isEqualTo(Instant.parse("2026-09-05T22:00:00.123Z"));
         assertThat(completable.getStatus()).isEqualTo(AppointmentStatus.COMPLETED);
     }
 
@@ -99,7 +106,7 @@ class AppointmentTest {
         ).isInstanceOf(IllegalStateException.class);
 
         Appointment completed = schedule(false, null, false);
-        completed.complete();
+        completed.complete(NOW);
         assertThatThrownBy(() -> completed.cancel(NOW))
             .isInstanceOf(IllegalStateException.class);
         assertThatThrownBy(() ->
