@@ -89,6 +89,7 @@ class SecurityConfigTest {
         when(http.oauth2ResourceServer(any())).thenAnswer(invocation -> {
             Customizer<OAuth2ResourceServerConfigurer<HttpSecurity>> customizer = invocation.getArgument(0);
             OAuth2ResourceServerConfigurer<HttpSecurity> oauth2 = mock(OAuth2ResourceServerConfigurer.class);
+            when(oauth2.authenticationEntryPoint(any())).thenReturn(oauth2);
             when(oauth2.jwt(any())).thenAnswer(jwtInvocation -> {
                 Customizer<OAuth2ResourceServerConfigurer<HttpSecurity>.JwtConfigurer> jwtCustomizer =
                         jwtInvocation.getArgument(0);
@@ -104,7 +105,9 @@ class SecurityConfigTest {
 
         when(http.build()).thenReturn(chain);
 
-        DefaultSecurityFilterChain built = (DefaultSecurityFilterChain) securityConfig.filterChain(http);
+        ProblemDetailAuthenticationEntryPoint entryPoint = mock(ProblemDetailAuthenticationEntryPoint.class);
+        DefaultSecurityFilterChain built =
+            (DefaultSecurityFilterChain) securityConfig.filterChain(http, entryPoint);
         assertSame(chain, built);
         assertNotNull(built);
     }

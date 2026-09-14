@@ -1,11 +1,13 @@
 package com.fiap.hospital.history.projection.api;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -86,7 +88,14 @@ class AppointmentHistoryGraphQlSecurityTest {
                     .contentType(MediaType.APPLICATION_JSON)
                     .content(graphqlBody("{ appointments(page: 1, size: 10) { totalElements } }"))
             )
-            .andExpect(status().isUnauthorized());
+            .andExpect(status().isUnauthorized())
+            .andExpect(
+                content().contentTypeCompatibleWith("application/problem+json")
+            )
+            .andExpect(jsonPath("$.status").value(401))
+            .andExpect(jsonPath("$.title").value("Não autenticado"))
+            .andExpect(jsonPath("$.detail").value(containsString("ausente")))
+            .andExpect(jsonPath("$.instance").value("/graphql"));
     }
 
     @Test
@@ -249,7 +258,12 @@ class AppointmentHistoryGraphQlSecurityTest {
                     .contentType(MediaType.APPLICATION_JSON)
                     .content(graphqlBody("{ appointments(page: 1, size: 10) { totalElements } }"))
             )
-            .andExpect(status().isUnauthorized());
+            .andExpect(status().isUnauthorized())
+            .andExpect(
+                content().contentTypeCompatibleWith("application/problem+json")
+            )
+            .andExpect(jsonPath("$.status").value(401))
+            .andExpect(jsonPath("$.detail").value(containsString("expirado")));
     }
 
     @Test
