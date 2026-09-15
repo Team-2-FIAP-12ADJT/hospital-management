@@ -15,6 +15,8 @@ import tools.jackson.databind.ObjectMapper;
 @Component
 public class SmokeConsumer {
 
+    private static final String CONSUMER = "smoke";
+
     private static final Logger log = LoggerFactory.getLogger(SmokeConsumer.class);
 
     private final ObjectMapper objectMapper;
@@ -71,7 +73,7 @@ public class SmokeConsumer {
             return;
         }
 
-        idempotencyService.process(parsedEventId, () ->
+        idempotencyService.process(CONSUMER, parsedEventId, () ->
             log.info("received event eventId={} eventType={}", eventId, eventType)
         );
     }

@@ -21,7 +21,7 @@
     "topic.creation.default.retention.ms": "-1",
 
     "errors.log.enable": "true",
-    "errors.log.include.messages": "true",
+    "errors.log.include.messages": "false",
 
     "transforms": "outbox",
     "transforms.outbox.type": "io.debezium.transforms.outbox.EventRouter",

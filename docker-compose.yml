@@ -230,7 +230,11 @@ services:
       args:
         SERVICE: notification
     depends_on:
+      notification-db:
+        condition: service_healthy
       kafka:
+        condition: service_healthy
+      mailpit:
         condition: service_healthy
     environment:
       NOTIFICATION_DB_URL: ${NOTIFICATION_DB_URL:-jdbc:postgresql://notification-db:5432/notification}
@@ -239,6 +243,15 @@ services:
       SERVER_PORT: ${SERVER_PORT:-8080}
       KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:-kafka:9092}
       GATEWAY_PUBLIC_URL: ${GATEWAY_PUBLIC_URL:-http://localhost:${GATEWAY_PORT:-8080}}
+      MAIL_HOST: ${MAIL_HOST:-mailpit}
+      MAIL_PORT: ${MAIL_PORT:-1025}
+      MAIL_FROM: ${MAIL_FROM:-noreply@hospital.local}
+      REMINDER_LEAD_TIME: ${REMINDER_LEAD_TIME:-PT24H}
+      NOTIFICATION_SWEEP_INTERVAL: ${NOTIFICATION_SWEEP_INTERVAL:-PT15S}
+      NOTIFICATION_MAX_ATTEMPTS: ${NOTIFICATION_MAX_ATTEMPTS:-10}
+      NOTIFICATION_DISPATCH_BATCH_SIZE: ${NOTIFICATION_DISPATCH_BATCH_SIZE:-50}
+      NOTIFICATION_FROM_ADDRESS: ${NOTIFICATION_FROM_ADDRESS:-nao-responda@hospital.local}
+      NOTIFICATION_DISPLAY_ZONE: ${NOTIFICATION_DISPLAY_ZONE:-America/Sao_Paulo}
     restart: unless-stopped
 
   history:

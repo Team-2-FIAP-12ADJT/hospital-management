@@ -1,0 +1,34 @@
+spring:
+  flyway:
+    enabled: true
+  jpa:
+    hibernate:
+      ddl-auto: validate
+  kafka:
+    listener:
+      auto-startup: false
+    admin:
+      # Sem broker no teste, o KafkaAdmin fica ~30s tentando criar os tópicos de
+      # DLT (auto-startup=false não desliga a administração de tópicos).
+      auto-create: false
+  mail:
+    host: 127.0.0.1
+    port: 3025
+
+# MockitoBean substitui o JavaMailSender; o contributor de health exige o bean real.
+management:
+  health:
+    mail:
+      enabled: false
+
+# O application.yml de teste substitui o de src/main por inteiro, então o bloco
+# `notification` precisa existir aqui também: sem ele o @Scheduled do
+# NotificationDispatcher não resolve ${notification.sweep-interval} e o contexto
+# não sobe. Valores iguais aos defaults de produção, de propósito.
+notification:
+  reminder-lead-time: PT24H
+  sweep-interval: PT15S
+  max-attempts: 10
+  dispatch-batch-size: 50
+  from-address: nao-responda@hospital.local
+  display-zone: America/Sao_Paulo
