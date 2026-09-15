@@ -7,10 +7,16 @@ import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.domain.Limit;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import jakarta.persistence.LockModeType;
 
 public interface NotificationRepository extends JpaRepository<Notification, UUID> {
+
+    @Override
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    Optional<Notification> findById(UUID id);
 
     @Query("""
         SELECT n FROM Notification n

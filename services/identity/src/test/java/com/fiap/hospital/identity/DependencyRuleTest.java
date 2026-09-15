@@ -13,6 +13,7 @@ import com.tngtech.archunit.lang.SimpleConditionEvent;
 import java.util.Set;
 
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes;
+import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 import static com.tngtech.archunit.library.dependencies.SlicesRuleDefinition.slices;
 
 @AnalyzeClasses(
@@ -45,6 +46,15 @@ class DependencyRuleTest {
         slices()
             .matching("com.fiap.hospital.identity.(*)..")
             .should().beFreeOfCycles();
+
+    @ArchTest
+    static final ArchRule theServiceDoesNotReachForTheDriver =
+        noClasses()
+            .should().dependOnClassesThat().resideInAnyPackage("org.postgresql..")
+            .because("nome de constraint sai do ConstraintViolationException do "
+                + "Hibernate, nunca do PSQLException: alcançar o driver acoplaria "
+                + "o serviço a ele, e por isso ele fica em escopo de runtime")
+            .allowEmptyShould(true);
 
     private static ArchCondition<JavaClass> featurePackagesAreIsolated() {
         return new ArchCondition<>("não depender de outra feature além de domain e contract") {

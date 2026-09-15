@@ -24,6 +24,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/actuator/health/**", "/error", "/.well-known/jwks.json",
                                 "/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/auth/activate").permitAll()
                         .requestMatchers(HttpMethod.POST, "/auth/login").authenticated()
                         .anyRequest().denyAll())
                 .httpBasic(Customizer.withDefaults());

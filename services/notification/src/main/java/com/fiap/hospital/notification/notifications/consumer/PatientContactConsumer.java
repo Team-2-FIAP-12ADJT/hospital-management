@@ -26,25 +26,15 @@ public class PatientContactConsumer {
 
     @KafkaListener(topics = "hospital.person", groupId = "notification-contact")
     public void receive(ConsumerRecord<String, String> record) {
-        consume(record.value(), record.partition(), record.offset());
+        consume(record.value());
     }
 
     void consume(String envelopeJson) {
-        consume(envelopeJson, -1, -1L);
-    }
-
-    private void consume(String envelopeJson, int partition, long offset) {
         PatientContact contact;
         try {
             contact = parser.parse(envelopeJson);
         } catch (UnsupportedEventException exception) {
             log.info("tipo fora da réplica de contato, ignorado: {}", exception.getMessage());
-            return;
-        } catch (RuntimeException exception) {
-            log.error(
-                "discarding unparseable message on hospital.person, partition={} offset={}: {}",
-                partition, offset, exception.getMessage()
-            );
             return;
         }
         maintainContactReplica.apply(contact);

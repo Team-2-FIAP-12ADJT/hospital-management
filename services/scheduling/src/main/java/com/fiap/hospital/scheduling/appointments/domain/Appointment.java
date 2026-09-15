@@ -43,6 +43,9 @@ public class Appointment implements Persistable<UUID> {
     @Column(name = "cancelled_at")
     private Instant cancelledAt;
 
+    @Column(name = "completed_at")
+    private Instant completedAt;
+
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
@@ -129,7 +132,7 @@ public class Appointment implements Persistable<UUID> {
         cancelledAt = normalizedNow;
     }
 
-    public boolean complete() {
+    public boolean complete(Instant now) {
         if (status == AppointmentStatus.COMPLETED) {
             return false;
         }
@@ -137,6 +140,7 @@ public class Appointment implements Persistable<UUID> {
             throw new IllegalStateException("cancelled appointment cannot be completed");
         }
         status = AppointmentStatus.COMPLETED;
+        completedAt = normalize(require(now, "now"));
         return true;
     }
 
@@ -195,5 +199,6 @@ public class Appointment implements Persistable<UUID> {
     public boolean isFitIn() { return fitIn; }
     public String getFitInReason() { return fitInReason; }
     public Instant getCancelledAt() { return cancelledAt; }
+    public Instant getCompletedAt() { return completedAt; }
     public Instant getCreatedAt() { return createdAt; }
 }

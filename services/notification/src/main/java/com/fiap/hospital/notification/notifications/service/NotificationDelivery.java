@@ -5,12 +5,14 @@ import com.fiap.hospital.notification.notifications.domain.Notification;
 import com.fiap.hospital.notification.notifications.domain.NotificationStatus;
 import com.fiap.hospital.notification.notifications.repository.ContactReplicaRepository;
 import com.fiap.hospital.notification.notifications.repository.NotificationRepository;
+import com.fiap.hospital.notification.mail.MailFailure;
 import java.time.Clock;
 import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.mail.MailException;
 
 @Service
 public class NotificationDelivery {
@@ -52,8 +54,18 @@ public class NotificationDelivery {
 
         try {
             mailer.send(notification, contact.getEmail());
-        } catch (RuntimeException exception) {
-            retryOrGiveUp(notification, "send failed: " + exception.getMessage());
+        } catch (MailException exception) {
+            if (MailFailure.isTransient(exception)) {
+                retryOrGiveUp(notification, "send failed: " + exception.getMessage());
+                return;
+            }
+            notification.markFailed();
+            notifications.save(notification);
+            log.error(
+                "discarding notification id={} kind={} patientId={} due to permanent mail failure: {}",
+                notification.getId(), notification.getKind(), notification.getPatientId(),
+                exception.getMessage()
+            );
             return;
         }
 
@@ -71,8 +83,10 @@ public class NotificationDelivery {
         notifications.save(notification);
 
         if (notification.getAttempts() >= properties.maxAttempts()) {
+            notification.markAbandoned();
+            notifications.save(notification);
             log.error(
-                "giving up on notification id={} kind={} patientId={} after {} attempts: {}",
+                "abandoning notification id={} kind={} patientId={} after {} attempts: {}",
                 notification.getId(), notification.getKind(), notification.getPatientId(),
                 notification.getAttempts(), cause
             );

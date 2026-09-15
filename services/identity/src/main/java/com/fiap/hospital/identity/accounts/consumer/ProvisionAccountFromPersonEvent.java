@@ -1,21 +1,15 @@
 package com.fiap.hospital.identity.accounts.consumer;
 
-import com.fiap.hospital.identity.accounts.domain.User;
-import com.fiap.hospital.identity.accounts.domain.ActivationToken;
 import com.fiap.hospital.identity.accounts.idempotency.IdempotencyService;
-import com.fiap.hospital.identity.accounts.repository.ActivationTokenRepository;
 import com.fiap.hospital.identity.accounts.repository.UserRepository;
-import com.fiap.hospital.identity.outbox.Aggregate;
 import com.fiap.hospital.identity.outbox.OccurredAtSerializer;
-import com.fiap.hospital.identity.outbox.OutboxEventWriter;
-import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
-import java.time.temporal.ChronoUnit;
 import java.util.UUID;
+import org.hibernate.exception.ConstraintViolationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import tools.jackson.databind.annotation.JsonSerialize;
 
@@ -25,28 +19,22 @@ class ProvisionAccountFromPersonEvent {
     private static final Logger log = LoggerFactory.getLogger(ProvisionAccountFromPersonEvent.class);
 
     static final String PENDING_ACTIVATION = "PENDING_ACTIVATION";
+    static final Duration ACTIVATION_TTL = Duration.ofHours(24);
+    private static final String DUPLICATE_TAX_IDENTIFIER_CONSTRAINT = "uk_users_tax_identifier";
+    private static final String UNIQUE_VIOLATION_SQLSTATE = "23505";
 
     private final IdempotencyService idempotencyService;
     private final UserRepository userRepository;
-    private final ActivationTokenRepository activationTokenRepository;
-    private final OutboxEventWriter outboxEventWriter;
-    private final PasswordEncoder passwordEncoder;
-    private final Clock clock;
+    private final PersistProvisionedAccount persistProvisionedAccount;
 
     ProvisionAccountFromPersonEvent(
         IdempotencyService idempotencyService,
         UserRepository userRepository,
-        ActivationTokenRepository activationTokenRepository,
-        OutboxEventWriter outboxEventWriter,
-        PasswordEncoder passwordEncoder,
-        Clock clock
+        PersistProvisionedAccount persistProvisionedAccount
     ) {
         this.idempotencyService = idempotencyService;
         this.userRepository = userRepository;
-        this.activationTokenRepository = activationTokenRepository;
-        this.outboxEventWriter = outboxEventWriter;
-        this.passwordEncoder = passwordEncoder;
-        this.clock = clock;
+        this.persistProvisionedAccount = persistProvisionedAccount;
     }
 
     void provision(PersonRegistration registration) {
@@ -62,38 +50,37 @@ class ProvisionAccountFromPersonEvent {
                 );
                 return;
             }
-            User user = userRepository.save(new User(
-                registration.personId(),
-                registration.taxIdentifier(),
-                registration.name(),
-                registration.email(),
-                registration.role(),
-                PENDING_ACTIVATION,
-                null
-            ));
-
-            Instant now = Instant.now(clock).truncatedTo(ChronoUnit.MILLIS);
-            Instant expiresAt = now.plus(Duration.ofHours(24));
-            String activationToken = UUID.randomUUID().toString();
-            activationTokenRepository.save(new ActivationToken(
-                UUID.randomUUID(),
-                user.getId(),
-                passwordEncoder.encode(activationToken),
-                expiresAt,
-                now
-            ));
-            outboxEventWriter.append(
-                Aggregate.ACCOUNT,
-                user.getId(),
-                "UserActivationRequested",
-                1,
-                now,
-                new UserActivationRequestedData(
-                    user.getId(), user.getName(), user.getEmail(),
-                    user.getRole().name(), activationToken, expiresAt
-                )
-            );
+            try {
+                persistProvisionedAccount.persist(registration);
+            } catch (DataIntegrityViolationException ex) {
+                if (!isDuplicateTaxIdentifier(ex)) {
+                    throw ex;
+                }
+                log.warn(
+                    "dropping account provisioning for eventId={} personId={} due to unique constraint ({})",
+                    registration.eventId(),
+                    registration.personId(),
+                    DUPLICATE_TAX_IDENTIFIER_CONSTRAINT
+                );
+            }
         });
+    }
+
+    // Identificação de constraint segue o padrão do repositório: SQLState mais
+    // getConstraintName() do org.hibernate.exception.ConstraintViolationException,
+    // sem alcançar o PSQLException, que acoplaria o serviço ao driver. Descarta
+    // só no match exato; violação não identificada relança, porque users.id vem
+    // do evento e pode colidir por concorrência — não é UUID aleatório, para o
+    // qual presumir colisão desprezível seria razoável.
+    // Limitação conhecida: o extrator do Hibernate no dialeto Postgres
+    // reconstrói o nome a partir do texto da mensagem de erro, que muda com
+    // lc_messages. Em instância com locale traduzido o nome vem nulo, o descarte
+    // deliberado não acontece e o evento se perde pelo caminho de erro do
+    // listener — dez tentativas e log, já que este serviço não configura DLT.
+    private static boolean isDuplicateTaxIdentifier(DataIntegrityViolationException ex) {
+        return ex.getCause() instanceof ConstraintViolationException constraintViolation
+            && UNIQUE_VIOLATION_SQLSTATE.equals(constraintViolation.getSQLState())
+            && DUPLICATE_TAX_IDENTIFIER_CONSTRAINT.equals(constraintViolation.getConstraintName());
     }
 
     record UserActivationRequestedData(

@@ -112,6 +112,11 @@ public class User {
         this.passwordHash = passwordHash;
     }
 
+    public void definePassword(String passwordHash) {
+        this.passwordHash = passwordHash;
+        this.status = "ACTIVE";
+    }
+
     public Instant getCreatedAt() {
         return createdAt;
     }
