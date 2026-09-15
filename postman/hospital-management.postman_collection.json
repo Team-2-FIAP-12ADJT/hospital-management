@@ -151,12 +151,10 @@
               }
             },
             "url": {
-              "raw": "http://localhost:8080/graphql",
-              "protocol": "http",
+              "raw": "{{baseUrl}}/graphql",
               "host": [
-                "localhost"
+                "{{baseUrl}}"
               ],
-              "port": "8080",
               "path": [
                 "graphql"
               ]
@@ -189,12 +187,10 @@
               }
             },
             "url": {
-              "raw": "http://localhost:8080/graphql",
-              "protocol": "http",
+              "raw": "{{baseUrl}}/graphql",
               "host": [
-                "localhost"
+                "{{baseUrl}}"
               ],
-              "port": "8080",
               "path": [
                 "graphql"
               ]
@@ -227,12 +223,10 @@
               }
             },
             "url": {
-              "raw": "http://localhost:8080/graphql",
-              "protocol": "http",
+              "raw": "{{baseUrl}}/graphql",
               "host": [
-                "localhost"
+                "{{baseUrl}}"
               ],
-              "port": "8080",
               "path": [
                 "graphql"
               ]
@@ -270,12 +264,10 @@
               }
             },
             "url": {
-              "raw": "http://localhost:8080/api/appointments",
-              "protocol": "http",
+              "raw": "{{baseUrl}}/api/appointments",
               "host": [
-                "localhost"
+                "{{baseUrl}}"
               ],
-              "port": "8080",
               "path": [
                 "api",
                 "appointments"
