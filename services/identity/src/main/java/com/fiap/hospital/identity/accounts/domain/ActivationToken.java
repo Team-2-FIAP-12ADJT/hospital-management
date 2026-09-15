@@ -41,6 +41,14 @@ public class ActivationToken {
         this.createdAt = createdAt;
     }
 
+    public void consume(Instant now) {
+        this.consumedAt = now;
+    }
+
+    public boolean isUnusedAndValidAt(Instant now) {
+        return consumedAt == null && expiresAt.isAfter(now);
+    }
+
     public UUID getId() { return id; }
     public UUID getUserId() { return userId; }
     public String getTokenHash() { return tokenHash; }

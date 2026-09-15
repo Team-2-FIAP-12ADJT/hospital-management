@@ -37,6 +37,7 @@ public class SecurityConfig {
                         "/graphiql/**"
                     )
                     .permitAll()
+                    .requestMatchers(HttpMethod.POST, "/auth/activate").permitAll()
                     .requestMatchers(HttpMethod.POST, "/api/patients").permitAll()
                     .requestMatchers(HttpMethod.POST, "/api/doctors").authenticated()
                     .requestMatchers("/api/appointments/**", "/graphql").authenticated()
