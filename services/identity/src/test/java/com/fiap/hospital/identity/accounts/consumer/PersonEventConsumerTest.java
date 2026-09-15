@@ -1,5 +1,7 @@
 package com.fiap.hospital.identity.accounts.consumer;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -10,23 +12,33 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 
-@ExtendWith(MockitoExtension.class)
+@ExtendWith({MockitoExtension.class, OutputCaptureExtension.class})
 class PersonEventConsumerTest {
+
+    // eventType e string arbitraria do publicador (nao validada contra lista
+    // nenhuma): usa o marcador no proprio eventType para provar que o log do
+    // caminho "nao suportado" nao ecoa dado nenhum do envelope recusado.
+    private static final String SENSITIVE_MARKER = "cpf-52998224726-marker";
 
     @Mock
     private ProvisionAccountFromPersonEvent provisionAccount;
 
     @Test
-    void discardsMalformedJson() {
-        receive("{not-json");
+    void propagatesMalformedJsonForTheContainerErrorHandlerToClassify() {
+        // Sem catch de RuntimeException: o error handler do container (KafkaConfig)
+        // e quem classifica e decide retry/DLT. Engolir aqui deixaria a DLT morta.
+        assertThatThrownBy(() -> receive("{not-json")).isInstanceOf(RuntimeException.class);
 
         verifyNoInteractions(provisionAccount);
     }
 
     @Test
-    void discardsEnvelopeMissingRequiredField() {
-        receive("{\"eventId\":\"" + UUID.randomUUID() + "\"}");
+    void propagatesEnvelopeMissingRequiredFieldForTheContainerErrorHandlerToClassify() {
+        assertThatThrownBy(() -> receive("{\"eventId\":\"" + UUID.randomUUID() + "\"}"))
+            .isInstanceOf(IllegalArgumentException.class);
 
         verifyNoInteractions(provisionAccount);
     }
@@ -36,6 +48,14 @@ class PersonEventConsumerTest {
         receive(PersonEventFixtures.contactUpdated(UUID.randomUUID(), UUID.randomUUID()));
 
         verifyNoInteractions(provisionAccount);
+    }
+
+    @Test
+    void unsupportedEventTypeIsIgnoredWithoutLoggingTheEventTypeItself(CapturedOutput output) {
+        receive("{\"eventId\":\"" + UUID.randomUUID() + "\",\"eventType\":\"" + SENSITIVE_MARKER + "\"}");
+
+        verifyNoInteractions(provisionAccount);
+        assertThat(output.getOut()).doesNotContain(SENSITIVE_MARKER);
     }
 
     @Test

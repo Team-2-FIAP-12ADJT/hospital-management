@@ -55,8 +55,11 @@ public class NotificationDelivery {
         try {
             mailer.send(notification, contact.getEmail());
         } catch (MailException exception) {
+            // A mensagem do servidor SMTP não entra no log: uma rejeição típica é
+            // "550 <email> rejected", ou seja o endereço do paciente. MailFailure.describe
+            // devolve causa e código de resposta, que é o que serve para diagnóstico.
             if (MailFailure.isTransient(exception)) {
-                retryOrGiveUp(notification, "send failed: " + exception.getMessage());
+                retryOrGiveUp(notification, "send failed: " + MailFailure.describe(exception));
                 return;
             }
             notification.markFailed();
@@ -64,7 +67,7 @@ public class NotificationDelivery {
             log.error(
                 "discarding notification id={} kind={} patientId={} due to permanent mail failure: {}",
                 notification.getId(), notification.getKind(), notification.getPatientId(),
-                exception.getMessage()
+                MailFailure.describe(exception)
             );
             return;
         }

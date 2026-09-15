@@ -10,6 +10,8 @@ import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.listener.DeadLetterPublishingRecoverer;
 import org.springframework.kafka.listener.DefaultErrorHandler;
 import org.springframework.kafka.support.ExponentialBackOffWithMaxRetries;
+import org.springframework.kafka.support.LoggingProducerListener;
+import org.springframework.kafka.support.ProducerListener;
 import org.springframework.util.backoff.BackOff;
 
 /**
@@ -66,6 +68,15 @@ class KafkaErrorHandlingConfig {
         backOff.setMultiplier(2.0);
         backOff.setMaxInterval(30_000L);
         return backOff;
+    }
+
+    // Sem este bean, o LoggingProducerListener default do Boot (includeContents=true)
+    // grava chave e payload em ERROR quando a publicação em qualquer DLT falha.
+    @Bean
+    ProducerListener<Object, Object> producerListener() {
+        LoggingProducerListener<Object, Object> listener = new LoggingProducerListener<>();
+        listener.setIncludeContents(false);
+        return listener;
     }
 
     private static NewTopic deadLetterTopic(String sourceTopic) {

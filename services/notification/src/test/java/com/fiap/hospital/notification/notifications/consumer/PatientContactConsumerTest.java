@@ -5,7 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.verifyNoInteractions;
 
-import com.fiap.hospital.notification.notifications.service.AppointmentNotifications;
+import com.fiap.hospital.notification.notifications.service.MaintainContactReplica;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -15,35 +15,33 @@ import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
 
 @ExtendWith({MockitoExtension.class, OutputCaptureExtension.class})
-class AppointmentEventConsumerTest {
+class PatientContactConsumerTest {
 
     // eventType e string arbitraria do publicador: o marcador vai nele mesmo
     // para provar que o log do caminho "fora de escopo" nao o ecoa.
-    private static final String SENSITIVE_MARKER = "appointment-secret-marker";
+    private static final String SENSITIVE_MARKER = "contact-secret-marker";
 
     @Mock
-    private AppointmentNotifications appointmentNotifications;
+    private MaintainContactReplica maintainContactReplica;
 
     @Test
-    void propagatesMalformedAppointmentEventForKafkaRetryAndDlt() {
+    void propagatesMalformedContactEventForKafkaRetryAndDlt() {
         assertThatThrownBy(() -> receive("{not-json"))
             .isInstanceOf(RuntimeException.class);
 
-        verifyNoInteractions(appointmentNotifications);
+        verifyNoInteractions(maintainContactReplica);
     }
 
     @Test
-    void ignoresAppointmentEventOutsideNotificationScope() {
-        assertThatCode(() -> receive("""
-            {"eventId":"00000000-0000-4000-8000-000000000001",
-             "eventType":"AppointmentCompleted",
-             "occurredAt":"2026-09-07T12:00:00Z",
-             "data":{"appointmentId":"00000000-0000-4000-8000-000000000002",
-                    "patientId":"00000000-0000-4000-8000-000000000003"}}
-            """))
-            .doesNotThrowAnyException();
+    void ignoresContactEventOutsideReplicaScope() {
+        assertThatCode(() -> receive(
+            "{\"eventId\":\"00000000-0000-4000-8000-000000000001\","
+                + "\"eventType\":\"DoctorRegistered\","
+                + "\"occurredAt\":\"2026-09-07T12:00:00Z\","
+                + "\"data\":{}}"
+        )).doesNotThrowAnyException();
 
-        verifyNoInteractions(appointmentNotifications);
+        verifyNoInteractions(maintainContactReplica);
     }
 
     @Test
@@ -55,12 +53,12 @@ class AppointmentEventConsumerTest {
                 + "\"data\":{}}"
         )).doesNotThrowAnyException();
 
-        verifyNoInteractions(appointmentNotifications);
+        verifyNoInteractions(maintainContactReplica);
         assertThat(output.getOut()).doesNotContain(SENSITIVE_MARKER);
     }
 
     private void receive(String value) {
-        new AppointmentEventConsumer(new AppointmentEventParser(), appointmentNotifications)
-            .receive(new ConsumerRecord<>("hospital.appointment", 0, 0L, null, value));
+        new PatientContactConsumer(new PatientContactParser(), maintainContactReplica)
+            .receive(new ConsumerRecord<>("hospital.person", 0, 0L, null, value));
     }
 }

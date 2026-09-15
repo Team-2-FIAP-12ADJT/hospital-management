@@ -41,6 +41,7 @@ class NotificationDeliveryTest {
 
     private static final Instant NOW = Instant.parse("2026-09-07T12:00:00.000Z");
     private static final short MAX_ATTEMPTS = 3;
+    private static final String CONTACT_EMAIL = "paciente.marcador@example.test";
 
     @Mock
     private NotificationRepository notifications;
@@ -185,6 +186,53 @@ class NotificationDeliveryTest {
                     assertThat(event.getLevel()).isEqualTo(Level.ERROR);
                     assertThat(event.getFormattedMessage()).contains("abandoning notification");
                 });
+        }
+    }
+
+    // A mensagem do SMTP carrega o endereço numa rejeição típica ("550 <email>
+    // rejected"). O log tem de sair com a classificação e o código de resposta, e
+    // sem o texto do servidor — nos DOIS caminhos, permanente e transitório.
+    @Test
+    void permanentMailFailureIsLoggedWithoutTheServerMessage() throws Exception {
+        Notification notification = confirmation();
+        when(notifications.findById(notification.getId())).thenReturn(Optional.of(notification));
+        when(contacts.findById(notification.getPatientId()))
+            .thenReturn(Optional.of(contactWith(CONTACT_EMAIL)));
+        doThrow(new MailSendException("550 " + CONTACT_EMAIL + " rejected"))
+            .when(mailer).send(any(), anyString());
+
+        try (CapturedLog captured = CapturedLog.of(NotificationDelivery.class)) {
+            delivery().deliver(notification.getId());
+
+            assertThat(captured.events())
+                .anySatisfy(event -> {
+                    assertThat(event.getLevel()).isEqualTo(Level.ERROR);
+                    assertThat(event.getFormattedMessage()).contains("smtpReply=550");
+                });
+            assertThat(captured.events())
+                .allSatisfy(event ->
+                    assertThat(event.getFormattedMessage()).doesNotContain(CONTACT_EMAIL));
+        }
+    }
+
+    @Test
+    void transientMailFailureIsLoggedWithoutTheServerMessage() throws Exception {
+        Notification notification = confirmation();
+        when(notifications.findById(notification.getId())).thenReturn(Optional.of(notification));
+        when(contacts.findById(notification.getPatientId()))
+            .thenReturn(Optional.of(contactWith(CONTACT_EMAIL)));
+        doThrow(new MailSendException("421 " + CONTACT_EMAIL + " try again later"))
+            .when(mailer).send(any(), anyString());
+
+        try (CapturedLog captured = CapturedLog.of(NotificationDelivery.class)) {
+            delivery().deliver(notification.getId());
+
+            assertThat(captured.events())
+                .anySatisfy(event ->
+                    assertThat(event.getFormattedMessage()).contains("smtpReply=421"));
+            assertThat(captured.events())
+                .allSatisfy(event ->
+                    assertThat(event.getFormattedMessage()).doesNotContain(CONTACT_EMAIL));
         }
     }
 

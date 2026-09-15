@@ -51,9 +51,13 @@ class PatientContactParserTest {
 
     @Test
     void refusesDoctorRegisteredBecauseNoReminderIsSentToADoctor() {
+        // eventType nao entra na mensagem da excecao (vazamento de log
+        // corrigido), mas fica no campo/acessor: a asserção prova qual tipo
+        // foi recusado, não só "algo fora de escopo".
         assertThatThrownBy(() -> parser.parse(EventFixtures.doctorRegistered(UUID.randomUUID())))
             .isInstanceOf(UnsupportedEventException.class)
-            .hasMessage("DoctorRegistered");
+            .extracting(ex -> ((UnsupportedEventException) ex).eventType())
+            .isEqualTo("DoctorRegistered");
     }
 
     @Test

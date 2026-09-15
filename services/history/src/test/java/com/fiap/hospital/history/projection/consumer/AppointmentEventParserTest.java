@@ -44,7 +44,7 @@ class AppointmentEventParserTest {
                 UnsupportedAppointmentEventException.class,
                 () -> parser.parse(envelope(false, null).replace("AppointmentScheduled", "AppointmentUnknown"))
         );
-        assertEquals("AppointmentUnknown", ex.getMessage());
+        assertEquals("AppointmentUnknown", ex.eventType());
     }
 
     @Test
