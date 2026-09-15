@@ -12,14 +12,14 @@ public class AppointmentEventConsumer {
     private static final Logger log = LoggerFactory.getLogger(AppointmentEventConsumer.class);
 
     private final AppointmentEventParser parser;
-    private final ApplyAppointmentScheduled applyScheduled;
+    private final ApplyAppointmentEvent applyEvent;
 
     AppointmentEventConsumer(
             AppointmentEventParser parser,
-            ApplyAppointmentScheduled applyScheduled
+            ApplyAppointmentEvent applyEvent
     ) {
         this.parser = parser;
-        this.applyScheduled = applyScheduled;
+        this.applyEvent = applyEvent;
     }
 
     @KafkaListener(
@@ -35,21 +35,19 @@ public class AppointmentEventConsumer {
     }
 
     private void consume(String envelopeJson, int partition, long offset) {
-        AppointmentScheduledMessage message;
+        AppointmentEvent message;
         try {
             message = parser.parse(envelopeJson);
         } catch (UnsupportedAppointmentEventException ex) {
-            log.info("tipo fora da projeção, ignorado: {}", ex.getMessage());
-            return;
-        } catch (RuntimeException ex) {
-            log.error(
-                    "discarding unparseable message on hospital.appointment, partition={} offset={}: {}",
+            // O eventType vem do envelope e não é validado contra lista nenhuma:
+            // é string arbitrária de quem publica, então não vai para o log.
+            log.info(
+                    "evento de tipo não projetado, ignorado: partition={} offset={}",
                     partition,
-                    offset,
-                    ex.getMessage()
+                    offset
             );
             return;
         }
-        applyScheduled.apply(message);
+        applyEvent.apply(message);
     }
 }

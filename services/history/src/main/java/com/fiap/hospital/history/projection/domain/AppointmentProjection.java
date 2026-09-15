@@ -58,6 +58,29 @@ public class AppointmentProjection {
     public AppointmentProjection() {
     }
 
+    // Empate em occurredAt vale como novo: o envelope trunca o instante em
+    // milissegundos, então dois eventos distintos do mesmo agendamento cabem no
+    // mesmo carimbo. Tratar empate como velho descartava o segundo para sempre —
+    // agendar e cancelar no mesmo milissegundo deixava a projeção em SCHEDULED.
+    // Reentrega do mesmo evento continua barrada pelo processed_event (eventId).
+    private boolean isStale(Instant appliedAt) {
+        return this.updatedAt != null && appliedAt.isBefore(this.updatedAt);
+    }
+
+    // CANCELLED e COMPLETED encerram o ciclo. Depois de um deles, só evento
+    // estritamente mais novo muda a linha. Sem esta guarda, reprocessar da DLT um
+    // reschedule de mesmo occurredAt que a conclusão ressuscita SCHEDULED com
+    // completedAt preenchido, porque o empate passa a obedecer à ordem de chegada.
+    // ⚠ O desempate correto seria sequência por agregado no envelope, que o
+    // scheduling ainda não publica; esta guarda fecha a regressão observável.
+    private boolean isTerminal() {
+        return this.status == AppointmentStatus.CANCELLED || this.status == AppointmentStatus.COMPLETED;
+    }
+
+    private boolean rejectsReopening(Instant appliedAt) {
+        return isTerminal() && !appliedAt.isAfter(this.updatedAt);
+    }
+
     public void applyScheduled(
             UUID appointmentId,
             UUID patientId,
@@ -70,6 +93,7 @@ public class AppointmentProjection {
             String doctorSpecialty,
             Instant appliedAt
     ) {
+        if (isStale(appliedAt) || rejectsReopening(appliedAt)) return;
         this.appointmentId = appointmentId;
         this.patientId = patientId;
         this.doctorId = doctorId;
@@ -80,6 +104,68 @@ public class AppointmentProjection {
         this.patientName = patientName;
         this.doctorName = doctorName;
         this.doctorSpecialty = doctorSpecialty;
+        this.updatedAt = appliedAt;
+    }
+
+    public void applyRescheduled(
+            UUID appointmentId,
+            UUID patientId,
+            UUID doctorId,
+            Instant scheduledAt,
+            boolean fitIn,
+            String fitInReason,
+            String patientName,
+            String doctorName,
+            String doctorSpecialty,
+            Instant appliedAt
+    ) {
+        if (isStale(appliedAt) || rejectsReopening(appliedAt)) return;
+        this.appointmentId = appointmentId;
+        this.patientId = patientId;
+        this.doctorId = doctorId;
+        this.scheduledAt = scheduledAt;
+        this.status = AppointmentStatus.SCHEDULED;
+        this.fitIn = fitIn;
+        this.fitInReason = fitInReason;
+        this.patientName = patientName;
+        this.doctorName = doctorName;
+        this.doctorSpecialty = doctorSpecialty;
+        this.updatedAt = appliedAt;
+    }
+
+    public void applyCancelled(
+            UUID appointmentId,
+            UUID patientId,
+            UUID doctorId,
+            Instant scheduledAt,
+            Instant cancelledAt,
+            Instant appliedAt
+    ) {
+        if (isStale(appliedAt) || rejectsReopening(appliedAt)) return;
+        this.appointmentId = appointmentId;
+        this.patientId = patientId;
+        this.doctorId = doctorId;
+        this.scheduledAt = scheduledAt;
+        this.status = AppointmentStatus.CANCELLED;
+        this.cancelledAt = cancelledAt;
+        this.updatedAt = appliedAt;
+    }
+
+    public void applyCompleted(
+            UUID appointmentId,
+            UUID patientId,
+            UUID doctorId,
+            Instant scheduledAt,
+            Instant completedAt,
+            Instant appliedAt
+    ) {
+        if (isStale(appliedAt) || rejectsReopening(appliedAt)) return;
+        this.appointmentId = appointmentId;
+        this.patientId = patientId;
+        this.doctorId = doctorId;
+        this.scheduledAt = scheduledAt;
+        this.status = AppointmentStatus.COMPLETED;
+        this.completedAt = completedAt;
         this.updatedAt = appliedAt;
     }
 
