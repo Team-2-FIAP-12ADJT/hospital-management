@@ -48,14 +48,12 @@ class DependencyRuleTest {
             .should().beFreeOfCycles();
 
     @ArchTest
-    static final ArchRule postgresDriverStaysWhereTheConstraintIsRead =
+    static final ArchRule theServiceDoesNotReachForTheDriver =
         noClasses()
-            .that().resideOutsideOfPackage("..accounts.consumer..")
             .should().dependOnClassesThat().resideInAnyPackage("org.postgresql..")
-            .because("o driver está em escopo de compilação apenas para ler o nome "
-                + "da constraint no campo estruturado do erro do Postgres, em "
-                + "ProvisionAccountFromPersonEvent; fora daí o serviço fala JDBC e "
-                + "JPA, não o driver")
+            .because("nome de constraint sai do ConstraintViolationException do "
+                + "Hibernate, nunca do PSQLException: alcançar o driver acoplaria "
+                + "o serviço a ele, e por isso ele fica em escopo de runtime")
             .allowEmptyShould(true);
 
     private static ArchCondition<JavaClass> featurePackagesAreIsolated() {

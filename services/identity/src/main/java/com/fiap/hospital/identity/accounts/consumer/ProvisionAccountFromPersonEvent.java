@@ -6,8 +6,7 @@ import com.fiap.hospital.identity.outbox.OccurredAtSerializer;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.UUID;
-import org.postgresql.util.PSQLException;
-import org.postgresql.util.ServerErrorMessage;
+import org.hibernate.exception.ConstraintViolationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -22,6 +21,7 @@ class ProvisionAccountFromPersonEvent {
     static final String PENDING_ACTIVATION = "PENDING_ACTIVATION";
     static final Duration ACTIVATION_TTL = Duration.ofHours(24);
     private static final String DUPLICATE_TAX_IDENTIFIER_CONSTRAINT = "uk_users_tax_identifier";
+    private static final String UNIQUE_VIOLATION_SQLSTATE = "23505";
 
     private final IdempotencyService idempotencyService;
     private final UserRepository userRepository;
@@ -66,26 +66,21 @@ class ProvisionAccountFromPersonEvent {
         });
     }
 
-    // getConstraintName() do Hibernate reconstrói o nome a partir do texto da
-    // mensagem do Postgres, que muda com lc_messages. O campo "Constraint" do
-    // protocolo de erro do Postgres (PSQLException.getServerErrorMessage()) é
-    // estruturado, não texto — independe de idioma. Só descartamos quando esse
-    // campo bate exatamente com a constraint de CPF duplicado; qualquer outra
-    // (inclusive sem constraint identificada) relança, porque users.id vem do
-    // evento e pode colidir por concorrência — não é uma colisão de UUID
-    // aleatório para presumir desprezível.
+    // Identificação de constraint segue o padrão do repositório: SQLState mais
+    // getConstraintName() do org.hibernate.exception.ConstraintViolationException,
+    // sem alcançar o PSQLException, que acoplaria o serviço ao driver. Descarta
+    // só no match exato; violação não identificada relança, porque users.id vem
+    // do evento e pode colidir por concorrência — não é UUID aleatório, para o
+    // qual presumir colisão desprezível seria razoável.
+    // Limitação conhecida: o extrator do Hibernate no dialeto Postgres
+    // reconstrói o nome a partir do texto da mensagem de erro, que muda com
+    // lc_messages. Em instância com locale traduzido o nome vem nulo, o descarte
+    // deliberado não acontece e o evento se perde pelo caminho de erro do
+    // listener — dez tentativas e log, já que este serviço não configura DLT.
     private static boolean isDuplicateTaxIdentifier(DataIntegrityViolationException ex) {
-        return DUPLICATE_TAX_IDENTIFIER_CONSTRAINT.equals(constraintNameOf(ex));
-    }
-
-    private static String constraintNameOf(Throwable ex) {
-        for (Throwable cause = ex; cause != null; cause = cause.getCause()) {
-            if (cause instanceof PSQLException psqlException) {
-                ServerErrorMessage serverError = psqlException.getServerErrorMessage();
-                return serverError == null ? null : serverError.getConstraint();
-            }
-        }
-        return null;
+        return ex.getCause() instanceof ConstraintViolationException constraintViolation
+            && UNIQUE_VIOLATION_SQLSTATE.equals(constraintViolation.getSQLState())
+            && DUPLICATE_TAX_IDENTIFIER_CONSTRAINT.equals(constraintViolation.getConstraintName());
     }
 
     record UserActivationRequestedData(
