@@ -57,6 +57,12 @@ class PersistProvisionedAccount {
             expiresAt,
             now
         ));
+        // O token em claro fica no payload de outbox_events até o Debezium
+        // publicar o evento — quem tiver acesso de leitura à tabela ativa
+        // qualquer conta pendente enquanto a linha existir. Purgar a linha
+        // exige saber quando o Debezium já a leu, o que este serviço não
+        // controla (CDC assíncrono, sem ack); tratar isso pertence ao
+        // ticket 22 (e-mail), não a este.
         outboxEventWriter.append(
             Aggregate.ACCOUNT,
             user.getId(),

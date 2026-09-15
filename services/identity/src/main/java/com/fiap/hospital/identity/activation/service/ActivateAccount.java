@@ -5,16 +5,16 @@ import com.fiap.hospital.identity.accounts.contract.ActivationTokens;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.UUID;
-import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.server.ResponseStatusException;
 
 @Service
 public class ActivateAccount {
 
     public static final String INVALID_TOKEN = "activation token is invalid or expired";
+
+    private static final int MIN_PASSWORD_LENGTH = 8;
 
     private final ActivationTokens activationTokens;
     private final ActivatePendingAccount activatePendingAccount;
@@ -35,12 +35,14 @@ public class ActivateAccount {
 
     @Transactional
     public void activate(String token, String password) {
-        if (isBlank(token) || isBlank(password)) {
+        if (isBlank(token)) {
             throw invalid();
         }
         String clearToken = token.strip();
+        validatePassword(clearToken, password);
+
         Instant now = Instant.now(clock);
-        UUID userId = activationTokens.findValidUserId(clearToken, now).orElseThrow(this::invalid);
+        UUID userId = activationTokens.consume(clearToken, now).orElseThrow(this::invalid);
         boolean activated = activatePendingAccount.definePassword(
             userId,
             passwordEncoder.encode(password)
@@ -48,14 +50,27 @@ public class ActivateAccount {
         if (!activated) {
             throw invalid();
         }
-        activationTokens.markConsumed(clearToken, now);
+    }
+
+    private void validatePassword(String clearToken, String password) {
+        if (isBlank(password)) {
+            throw new WeakPasswordException("password must not be blank");
+        }
+        if (password.length() < MIN_PASSWORD_LENGTH) {
+            throw new WeakPasswordException(
+                "password must be at least " + MIN_PASSWORD_LENGTH + " characters long"
+            );
+        }
+        if (password.equals(clearToken)) {
+            throw new WeakPasswordException("password must not match the activation token");
+        }
     }
 
     private static boolean isBlank(String value) {
         return value == null || value.isBlank();
     }
 
-    private ResponseStatusException invalid() {
-        return new ResponseStatusException(HttpStatus.BAD_REQUEST, INVALID_TOKEN);
+    private InvalidActivationTokenException invalid() {
+        return new InvalidActivationTokenException();
     }
 }

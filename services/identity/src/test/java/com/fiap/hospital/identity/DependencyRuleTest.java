@@ -13,6 +13,7 @@ import com.tngtech.archunit.lang.SimpleConditionEvent;
 import java.util.Set;
 
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes;
+import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 import static com.tngtech.archunit.library.dependencies.SlicesRuleDefinition.slices;
 
 @AnalyzeClasses(
@@ -45,6 +46,17 @@ class DependencyRuleTest {
         slices()
             .matching("com.fiap.hospital.identity.(*)..")
             .should().beFreeOfCycles();
+
+    @ArchTest
+    static final ArchRule postgresDriverStaysWhereTheConstraintIsRead =
+        noClasses()
+            .that().resideOutsideOfPackage("..accounts.consumer..")
+            .should().dependOnClassesThat().resideInAnyPackage("org.postgresql..")
+            .because("o driver está em escopo de compilação apenas para ler o nome "
+                + "da constraint no campo estruturado do erro do Postgres, em "
+                + "ProvisionAccountFromPersonEvent; fora daí o serviço fala JDBC e "
+                + "JPA, não o driver")
+            .allowEmptyShould(true);
 
     private static ArchCondition<JavaClass> featurePackagesAreIsolated() {
         return new ArchCondition<>("não depender de outra feature além de domain e contract") {

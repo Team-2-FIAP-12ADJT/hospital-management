@@ -6,7 +6,10 @@ import java.util.UUID;
 
 public interface ActivationTokens {
 
-    Optional<UUID> findValidUserId(String clearToken, Instant now);
-
-    void markConsumed(String clearToken, Instant now);
+    /**
+     * Atomically claims the token: consumes it and returns the owning user id
+     * only if it was still unused and unexpired. Concurrent callers for the
+     * same token never both succeed.
+     */
+    Optional<UUID> consume(String clearToken, Instant now);
 }

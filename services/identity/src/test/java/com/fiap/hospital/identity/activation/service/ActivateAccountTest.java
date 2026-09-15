@@ -21,7 +21,6 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.web.server.ResponseStatusException;
 
 @ExtendWith(MockitoExtension.class)
 class ActivateAccountTest {
@@ -54,51 +53,89 @@ class ActivateAccountTest {
 
     @Test
     void consumesTokenAndActivatesAccount() {
-        when(activationTokens.findValidUserId(TOKEN, NOW)).thenReturn(Optional.of(USER_ID));
+        when(activationTokens.consume(TOKEN, NOW)).thenReturn(Optional.of(USER_ID));
         when(passwordEncoder.encode(PASSWORD)).thenReturn("{bcrypt}hash");
         when(activatePendingAccount.definePassword(USER_ID, "{bcrypt}hash")).thenReturn(true);
 
         activateAccount.activate(TOKEN, PASSWORD);
 
         verify(activatePendingAccount).definePassword(USER_ID, "{bcrypt}hash");
-        verify(activationTokens).markConsumed(TOKEN, NOW);
+        verify(activationTokens).consume(TOKEN, NOW);
     }
 
     @Test
     void unknownTokenDoesNotRevealExistence() {
-        when(activationTokens.findValidUserId(TOKEN, NOW)).thenReturn(Optional.empty());
+        when(activationTokens.consume(TOKEN, NOW)).thenReturn(Optional.empty());
 
-        assertInvalid(() -> activateAccount.activate(TOKEN, PASSWORD));
+        assertInvalidToken(() -> activateAccount.activate(TOKEN, PASSWORD));
 
         verify(activatePendingAccount, never()).definePassword(any(), any());
-        verify(activationTokens, never()).markConsumed(any(), any());
     }
 
     @Test
-    void alreadyActiveAccountDoesNotConsumeToken() {
-        when(activationTokens.findValidUserId(TOKEN, NOW)).thenReturn(Optional.of(USER_ID));
+    void alreadyActiveAccountRejectsWithInvalidTokenError() {
+        when(activationTokens.consume(TOKEN, NOW)).thenReturn(Optional.of(USER_ID));
         when(passwordEncoder.encode(PASSWORD)).thenReturn("{bcrypt}hash");
         when(activatePendingAccount.definePassword(USER_ID, "{bcrypt}hash")).thenReturn(false);
 
-        assertInvalid(() -> activateAccount.activate(TOKEN, PASSWORD));
-
-        verify(activationTokens, never()).markConsumed(any(), any());
+        assertInvalidToken(() -> activateAccount.activate(TOKEN, PASSWORD));
     }
 
     @Test
-    void blankCredentialsAreRejectedTheSameWay() {
-        assertInvalid(() -> activateAccount.activate(" ", PASSWORD));
-        assertInvalid(() -> activateAccount.activate(TOKEN, " "));
-        verify(activationTokens, never()).findValidUserId(any(), any());
+    void blankTokenIsRejectedAsInvalidToken() {
+        assertInvalidToken(() -> activateAccount.activate(" ", PASSWORD));
+        assertInvalidToken(() -> activateAccount.activate(null, PASSWORD));
+
+        verify(activationTokens, never()).consume(any(), any());
     }
 
-    private static void assertInvalid(Runnable action) {
+    @Test
+    void blankPasswordIsRejectedAsWeak() {
+        assertWeakPassword(
+            () -> activateAccount.activate(TOKEN, " "),
+            "password must not be blank"
+        );
+
+        verify(activationTokens, never()).consume(any(), any());
+    }
+
+    @Test
+    void shortPasswordIsRejectedAsWeak() {
+        assertWeakPassword(
+            () -> activateAccount.activate(TOKEN, "abc123"),
+            "password must be at least 8 characters long"
+        );
+
+        verify(activationTokens, never()).consume(any(), any());
+    }
+
+    @Test
+    void passwordEqualToTokenIsRejectedAsWeak() {
+        assertWeakPassword(
+            () -> activateAccount.activate(TOKEN, TOKEN),
+            "password must not match the activation token"
+        );
+
+        verify(activationTokens, never()).consume(any(), any());
+    }
+
+    private static void assertInvalidToken(Runnable action) {
         assertThatThrownBy(action::run)
-            .isInstanceOf(ResponseStatusException.class)
+            .isInstanceOf(InvalidActivationTokenException.class)
             .satisfies(ex -> {
-                ResponseStatusException error = (ResponseStatusException) ex;
+                InvalidActivationTokenException error = (InvalidActivationTokenException) ex;
                 assertThat(error.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
                 assertThat(error.getReason()).isEqualTo(ActivateAccount.INVALID_TOKEN);
+            });
+    }
+
+    private static void assertWeakPassword(Runnable action, String expectedReason) {
+        assertThatThrownBy(action::run)
+            .isInstanceOf(WeakPasswordException.class)
+            .satisfies(ex -> {
+                WeakPasswordException error = (WeakPasswordException) ex;
+                assertThat(error.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+                assertThat(error.getReason()).isEqualTo(expectedReason);
             });
     }
 }

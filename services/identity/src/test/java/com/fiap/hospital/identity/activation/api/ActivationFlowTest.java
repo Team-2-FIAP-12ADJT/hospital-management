@@ -144,6 +144,37 @@ class ActivationFlowTest {
             .isEqualTo("PENDING_ACTIVATION");
     }
 
+    @Test
+    void weakPasswordDoesNotActivateAccountNorConsumeToken() throws Exception {
+        UUID patientId = UUID.randomUUID();
+        Instant now = Instant.now().truncatedTo(ChronoUnit.MILLIS);
+        String taxIdentifier = nextCpf();
+        String token = "token-fraco-" + taxIdentifier;
+        userRepository.save(new User(
+            patientId, taxIdentifier, "Ana Ribeiro", "ana.ribeiro@exemplo.com",
+            Role.PATIENT, "PENDING_ACTIVATION", null
+        ));
+        activationTokenRepository.save(new ActivationToken(
+            UUID.randomUUID(),
+            patientId,
+            ActivationTokenHash.of(token),
+            now.plus(24, ChronoUnit.HOURS),
+            now
+        ));
+
+        mockMvc.perform(post("/auth/activate")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(activateBody(token, "a")))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.error").doesNotExist());
+
+        assertThat(userRepository.findById(patientId).orElseThrow().getStatus())
+            .isEqualTo("PENDING_ACTIVATION");
+        assertThat(activationTokenRepository.findByTokenHash(ActivationTokenHash.of(token))
+            .orElseThrow()
+            .getConsumedAt()).isNull();
+    }
+
     private static String activateBody(String token, String password) {
         return """
             {"token":"%s","password":"%s"}
