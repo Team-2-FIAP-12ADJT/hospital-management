@@ -14,5 +14,6 @@ record AppointmentScheduledMessage(
         String fitInReason,
         String patientName,
         String doctorName,
-        String doctorSpecialty
+        String doctorSpecialty,
+        Long aggregateVersion
 ) implements AppointmentEvent {}

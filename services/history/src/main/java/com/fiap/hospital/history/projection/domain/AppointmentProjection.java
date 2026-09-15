@@ -55,6 +55,9 @@ public class AppointmentProjection {
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
 
+    @Column(name = "aggregate_version")
+    private Long aggregateVersion;
+
     public AppointmentProjection() {
     }
 
@@ -71,14 +74,26 @@ public class AppointmentProjection {
     // estritamente mais novo muda a linha. Sem esta guarda, reprocessar da DLT um
     // reschedule de mesmo occurredAt que a conclusão ressuscita SCHEDULED com
     // completedAt preenchido, porque o empate passa a obedecer à ordem de chegada.
-    // ⚠ O desempate correto seria sequência por agregado no envelope, que o
-    // scheduling ainda não publica; esta guarda fecha a regressão observável.
     private boolean isTerminal() {
         return this.status == AppointmentStatus.CANCELLED || this.status == AppointmentStatus.COMPLETED;
     }
 
     private boolean rejectsReopening(Instant appliedAt) {
         return isTerminal() && !appliedAt.isAfter(this.updatedAt);
+    }
+
+    // Desempate real: aggregateVersion é monótono por agregado (o occurredAt truncado
+    // em milissegundos não é — dois fatos do mesmo agendamento cabem no mesmo carimbo,
+    // e depois de um replay da DLT o offset maior faz o evento reprocessado parecer o
+    // mais novo mesmo sendo mais antigo). Só decide quando os dois lados o têm; falta
+    // em qualquer um — linha ainda sem versão, ou evento de replay anterior à mudança —
+    // cai na regra de occurredAt, que é o que mantém o replay desde o offset zero
+    // reconstruindo a projeção corretamente.
+    private boolean rejects(Instant appliedAt, Long newAggregateVersion) {
+        if (this.aggregateVersion != null && newAggregateVersion != null) {
+            return newAggregateVersion <= this.aggregateVersion;
+        }
+        return isStale(appliedAt) || rejectsReopening(appliedAt);
     }
 
     public void applyScheduled(
@@ -91,9 +106,10 @@ public class AppointmentProjection {
             String patientName,
             String doctorName,
             String doctorSpecialty,
-            Instant appliedAt
+            Instant appliedAt,
+            Long aggregateVersion
     ) {
-        if (isStale(appliedAt) || rejectsReopening(appliedAt)) return;
+        if (rejects(appliedAt, aggregateVersion)) return;
         this.appointmentId = appointmentId;
         this.patientId = patientId;
         this.doctorId = doctorId;
@@ -105,6 +121,7 @@ public class AppointmentProjection {
         this.doctorName = doctorName;
         this.doctorSpecialty = doctorSpecialty;
         this.updatedAt = appliedAt;
+        this.aggregateVersion = aggregateVersion;
     }
 
     public void applyRescheduled(
@@ -117,9 +134,10 @@ public class AppointmentProjection {
             String patientName,
             String doctorName,
             String doctorSpecialty,
-            Instant appliedAt
+            Instant appliedAt,
+            Long aggregateVersion
     ) {
-        if (isStale(appliedAt) || rejectsReopening(appliedAt)) return;
+        if (rejects(appliedAt, aggregateVersion)) return;
         this.appointmentId = appointmentId;
         this.patientId = patientId;
         this.doctorId = doctorId;
@@ -131,6 +149,7 @@ public class AppointmentProjection {
         this.doctorName = doctorName;
         this.doctorSpecialty = doctorSpecialty;
         this.updatedAt = appliedAt;
+        this.aggregateVersion = aggregateVersion;
     }
 
     public void applyCancelled(
@@ -139,9 +158,10 @@ public class AppointmentProjection {
             UUID doctorId,
             Instant scheduledAt,
             Instant cancelledAt,
-            Instant appliedAt
+            Instant appliedAt,
+            Long aggregateVersion
     ) {
-        if (isStale(appliedAt) || rejectsReopening(appliedAt)) return;
+        if (rejects(appliedAt, aggregateVersion)) return;
         this.appointmentId = appointmentId;
         this.patientId = patientId;
         this.doctorId = doctorId;
@@ -149,6 +169,7 @@ public class AppointmentProjection {
         this.status = AppointmentStatus.CANCELLED;
         this.cancelledAt = cancelledAt;
         this.updatedAt = appliedAt;
+        this.aggregateVersion = aggregateVersion;
     }
 
     public void applyCompleted(
@@ -157,9 +178,10 @@ public class AppointmentProjection {
             UUID doctorId,
             Instant scheduledAt,
             Instant completedAt,
-            Instant appliedAt
+            Instant appliedAt,
+            Long aggregateVersion
     ) {
-        if (isStale(appliedAt) || rejectsReopening(appliedAt)) return;
+        if (rejects(appliedAt, aggregateVersion)) return;
         this.appointmentId = appointmentId;
         this.patientId = patientId;
         this.doctorId = doctorId;
@@ -167,6 +189,7 @@ public class AppointmentProjection {
         this.status = AppointmentStatus.COMPLETED;
         this.completedAt = completedAt;
         this.updatedAt = appliedAt;
+        this.aggregateVersion = aggregateVersion;
     }
 
     public UUID getAppointmentId() {
@@ -215,5 +238,9 @@ public class AppointmentProjection {
 
     public Instant getCompletedAt() {
         return completedAt;
+    }
+
+    public Long getAggregateVersion() {
+        return aggregateVersion;
     }
 }

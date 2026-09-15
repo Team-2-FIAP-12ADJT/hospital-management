@@ -62,7 +62,7 @@ class AppointmentProjectionTest {
         AppointmentProjection projection = new AppointmentProjection();
         setField(projection, "updatedAt", Instant.parse("2026-07-09T09:00:00Z"));
         UUID id = UUID.randomUUID();
-        projection.applyScheduled(id, id, id, Instant.parse("2026-07-10T14:00:00Z"), false, null, "P", "D", "S", Instant.parse("2026-07-09T10:00:00Z"));
+        projection.applyScheduled(id, id, id, Instant.parse("2026-07-10T14:00:00Z"), false, null, "P", "D", "S", Instant.parse("2026-07-09T10:00:00Z"), null);
         
         assertEquals(AppointmentStatus.SCHEDULED, projection.getStatus());
         assertEquals(Instant.parse("2026-07-10T14:00:00Z"), projection.getScheduledAt());
@@ -74,7 +74,7 @@ class AppointmentProjectionTest {
         AppointmentProjection projection = new AppointmentProjection();
         setField(projection, "updatedAt", Instant.parse("2026-07-09T09:00:00Z"));
         UUID id = UUID.randomUUID();
-        projection.applyRescheduled(id, id, id, Instant.parse("2026-07-10T14:00:00Z"), false, null, "P", "D", "S", Instant.parse("2026-07-09T10:00:00Z"));
+        projection.applyRescheduled(id, id, id, Instant.parse("2026-07-10T14:00:00Z"), false, null, "P", "D", "S", Instant.parse("2026-07-09T10:00:00Z"), null);
         
         assertEquals(AppointmentStatus.SCHEDULED, projection.getStatus());
         assertEquals(Instant.parse("2026-07-10T14:00:00Z"), projection.getScheduledAt());
@@ -86,7 +86,7 @@ class AppointmentProjectionTest {
         AppointmentProjection projection = new AppointmentProjection();
         setField(projection, "updatedAt", Instant.parse("2026-07-09T09:00:00Z"));
         UUID id = UUID.randomUUID();
-        projection.applyCancelled(id, id, id, Instant.parse("2026-07-09T10:00:00Z"), Instant.parse("2026-07-09T11:00:00Z"), Instant.parse("2026-07-09T12:00:00Z"));
+        projection.applyCancelled(id, id, id, Instant.parse("2026-07-09T10:00:00Z"), Instant.parse("2026-07-09T11:00:00Z"), Instant.parse("2026-07-09T12:00:00Z"), null);
         
         assertEquals(AppointmentStatus.CANCELLED, projection.getStatus());
         assertEquals(Instant.parse("2026-07-09T11:00:00Z"), projection.getCancelledAt());
@@ -98,7 +98,7 @@ class AppointmentProjectionTest {
         AppointmentProjection projection = new AppointmentProjection();
         setField(projection, "updatedAt", Instant.parse("2026-07-09T09:00:00Z"));
         UUID id = UUID.randomUUID();
-        projection.applyCompleted(id, id, id, Instant.parse("2026-07-09T10:00:00Z"), Instant.parse("2026-07-09T11:00:00Z"), Instant.parse("2026-07-09T12:00:00Z"));
+        projection.applyCompleted(id, id, id, Instant.parse("2026-07-09T10:00:00Z"), Instant.parse("2026-07-09T11:00:00Z"), Instant.parse("2026-07-09T12:00:00Z"), null);
         
         assertEquals(AppointmentStatus.COMPLETED, projection.getStatus());
         assertEquals(Instant.parse("2026-07-09T11:00:00Z"), projection.getCompletedAt());
@@ -113,14 +113,14 @@ class AppointmentProjectionTest {
         Instant tie = Instant.parse("2026-07-09T10:00:00Z");
 
         AppointmentProjection afterCompleted = new AppointmentProjection();
-        afterCompleted.applyCompleted(id, id, id, Instant.parse("2026-07-09T08:00:00Z"), Instant.parse("2026-07-09T09:00:00Z"), tie);
-        afterCompleted.applyScheduled(id, id, id, Instant.parse("2026-07-11T14:00:00Z"), false, null, "P", "D", "S", tie);
-        afterCompleted.applyCancelled(id, id, id, Instant.parse("2026-07-11T14:00:00Z"), Instant.parse("2026-07-09T11:00:00Z"), tie);
+        afterCompleted.applyCompleted(id, id, id, Instant.parse("2026-07-09T08:00:00Z"), Instant.parse("2026-07-09T09:00:00Z"), tie, null);
+        afterCompleted.applyScheduled(id, id, id, Instant.parse("2026-07-11T14:00:00Z"), false, null, "P", "D", "S", tie, null);
+        afterCompleted.applyCancelled(id, id, id, Instant.parse("2026-07-11T14:00:00Z"), Instant.parse("2026-07-09T11:00:00Z"), tie, null);
         assertEquals(AppointmentStatus.COMPLETED, afterCompleted.getStatus());
 
         AppointmentProjection afterCancelled = new AppointmentProjection();
-        afterCancelled.applyCancelled(id, id, id, Instant.parse("2026-07-09T08:00:00Z"), Instant.parse("2026-07-09T09:00:00Z"), tie);
-        afterCancelled.applyCompleted(id, id, id, Instant.parse("2026-07-09T08:00:00Z"), Instant.parse("2026-07-09T11:00:00Z"), tie);
+        afterCancelled.applyCancelled(id, id, id, Instant.parse("2026-07-09T08:00:00Z"), Instant.parse("2026-07-09T09:00:00Z"), tie, null);
+        afterCancelled.applyCompleted(id, id, id, Instant.parse("2026-07-09T08:00:00Z"), Instant.parse("2026-07-09T11:00:00Z"), tie, null);
         assertEquals(AppointmentStatus.CANCELLED, afterCancelled.getStatus());
     }
 
@@ -131,9 +131,9 @@ class AppointmentProjectionTest {
         AppointmentProjection projection = new AppointmentProjection();
         UUID id = UUID.randomUUID();
         Instant tie = Instant.parse("2026-07-09T10:00:00Z");
-        projection.applyScheduled(id, id, id, Instant.parse("2026-07-11T14:00:00Z"), false, null, "P", "D", "S", tie);
+        projection.applyScheduled(id, id, id, Instant.parse("2026-07-11T14:00:00Z"), false, null, "P", "D", "S", tie, null);
 
-        projection.applyCancelled(id, id, id, Instant.parse("2026-07-11T14:00:00Z"), Instant.parse("2026-07-09T11:00:00Z"), tie);
+        projection.applyCancelled(id, id, id, Instant.parse("2026-07-11T14:00:00Z"), Instant.parse("2026-07-09T11:00:00Z"), tie, null);
 
         assertEquals(AppointmentStatus.CANCELLED, projection.getStatus());
     }
@@ -145,9 +145,9 @@ class AppointmentProjectionTest {
         AppointmentProjection projection = new AppointmentProjection();
         UUID id = UUID.randomUUID();
         Instant tie = Instant.parse("2026-07-09T10:00:00Z");
-        projection.applyCompleted(id, id, id, Instant.parse("2026-07-09T08:00:00Z"), Instant.parse("2026-07-09T09:00:00Z"), tie);
+        projection.applyCompleted(id, id, id, Instant.parse("2026-07-09T08:00:00Z"), Instant.parse("2026-07-09T09:00:00Z"), tie, null);
 
-        projection.applyRescheduled(id, id, id, Instant.parse("2026-07-11T14:00:00Z"), false, null, "P", "D", "S", tie);
+        projection.applyRescheduled(id, id, id, Instant.parse("2026-07-11T14:00:00Z"), false, null, "P", "D", "S", tie, null);
 
         assertEquals(AppointmentStatus.COMPLETED, projection.getStatus());
         assertEquals(Instant.parse("2026-07-09T09:00:00Z"), projection.getCompletedAt());
@@ -157,9 +157,9 @@ class AppointmentProjectionTest {
     void terminalStateStillYieldsToStrictlyNewerEvent() {
         AppointmentProjection projection = new AppointmentProjection();
         UUID id = UUID.randomUUID();
-        projection.applyCancelled(id, id, id, Instant.parse("2026-07-09T08:00:00Z"), Instant.parse("2026-07-09T09:00:00Z"), Instant.parse("2026-07-09T10:00:00Z"));
+        projection.applyCancelled(id, id, id, Instant.parse("2026-07-09T08:00:00Z"), Instant.parse("2026-07-09T09:00:00Z"), Instant.parse("2026-07-09T10:00:00Z"), null);
 
-        projection.applyScheduled(id, id, id, Instant.parse("2026-07-11T14:00:00Z"), false, null, "P", "D", "S", Instant.parse("2026-07-09T10:00:00.001Z"));
+        projection.applyScheduled(id, id, id, Instant.parse("2026-07-11T14:00:00Z"), false, null, "P", "D", "S", Instant.parse("2026-07-09T10:00:00.001Z"), null);
 
         assertEquals(AppointmentStatus.SCHEDULED, projection.getStatus());
     }
@@ -170,7 +170,7 @@ class AppointmentProjectionTest {
         setField(projection, "updatedAt", Instant.parse("2026-07-09T10:00:00Z"));
         UUID id = UUID.randomUUID();
 
-        projection.applyCancelled(id, id, id, Instant.parse("2026-07-09T10:00:00Z"), Instant.parse("2026-07-09T11:00:00Z"), Instant.parse("2026-07-09T09:00:00Z"));
+        projection.applyCancelled(id, id, id, Instant.parse("2026-07-09T10:00:00Z"), Instant.parse("2026-07-09T11:00:00Z"), Instant.parse("2026-07-09T09:00:00Z"), null);
 
         assertNull(projection.getStatus());
         assertEquals(Instant.parse("2026-07-09T10:00:00Z"), setFieldAndGet(projection, "updatedAt"));
@@ -186,7 +186,7 @@ class AppointmentProjectionTest {
         setField(projection, "updatedAt", Instant.parse("2026-07-09T10:00:00Z"));
         UUID id = UUID.randomUUID();
 
-        projection.applyCancelled(id, id, id, Instant.parse("2026-07-09T10:00:00Z"), Instant.parse("2026-07-09T11:00:00Z"), Instant.parse("2026-07-09T10:00:00Z"));
+        projection.applyCancelled(id, id, id, Instant.parse("2026-07-09T10:00:00Z"), Instant.parse("2026-07-09T11:00:00Z"), Instant.parse("2026-07-09T10:00:00Z"), null);
 
         assertEquals(AppointmentStatus.CANCELLED, projection.getStatus());
         assertEquals(Instant.parse("2026-07-09T10:00:00Z"), setFieldAndGet(projection, "updatedAt"));
@@ -197,7 +197,7 @@ class AppointmentProjectionTest {
         AppointmentProjection projection = new AppointmentProjection();
         setField(projection, "updatedAt", Instant.parse("2026-07-09T10:00:00Z"));
         UUID id = UUID.randomUUID();
-        projection.applyScheduled(id, id, id, Instant.parse("2026-07-10T14:00:00Z"), false, null, "P", "D", "S", Instant.parse("2026-07-09T09:00:00Z"));
+        projection.applyScheduled(id, id, id, Instant.parse("2026-07-10T14:00:00Z"), false, null, "P", "D", "S", Instant.parse("2026-07-09T09:00:00Z"), null);
         assertNull(projection.getStatus());
     }
 
@@ -206,7 +206,7 @@ class AppointmentProjectionTest {
         AppointmentProjection projection = new AppointmentProjection();
         setField(projection, "updatedAt", Instant.parse("2026-07-09T10:00:00Z"));
         UUID id = UUID.randomUUID();
-        projection.applyRescheduled(id, id, id, Instant.parse("2026-07-10T14:00:00Z"), false, null, "P", "D", "S", Instant.parse("2026-07-09T09:00:00Z"));
+        projection.applyRescheduled(id, id, id, Instant.parse("2026-07-10T14:00:00Z"), false, null, "P", "D", "S", Instant.parse("2026-07-09T09:00:00Z"), null);
         assertNull(projection.getStatus());
     }
 
@@ -215,8 +215,81 @@ class AppointmentProjectionTest {
         AppointmentProjection projection = new AppointmentProjection();
         setField(projection, "updatedAt", Instant.parse("2026-07-09T10:00:00Z"));
         UUID id = UUID.randomUUID();
-        projection.applyCompleted(id, id, id, Instant.parse("2026-07-09T10:00:00Z"), Instant.parse("2026-07-09T11:00:00Z"), Instant.parse("2026-07-09T09:00:00Z"));
+        projection.applyCompleted(id, id, id, Instant.parse("2026-07-09T10:00:00Z"), Instant.parse("2026-07-09T11:00:00Z"), Instant.parse("2026-07-09T09:00:00Z"), null);
         assertNull(projection.getStatus());
+    }
+
+    // aggregateVersion desempata quando os dois lados o tem, mesmo com occurredAt
+    // empatado: e o cenario do replay da DLT, onde o evento reprocessado chega com
+    // offset maior (portanto pareceria "mais novo" por ordem de chegada) mas carrega
+    // uma versao de agregado menor que a ja aplicada.
+    @Test
+    void lowerAggregateVersionIsIgnoredEvenWithSameOrLaterOccurredAtAndArrival() {
+        AppointmentProjection projection = new AppointmentProjection();
+        UUID id = UUID.randomUUID();
+        Instant tie = Instant.parse("2026-07-09T10:00:00Z");
+
+        projection.applyScheduled(id, id, id, Instant.parse("2026-07-10T14:00:00Z"), false, null, "P", "D", "S", tie, 5L);
+
+        // Mesmo occurredAt (empate) e aggregateVersion MENOR: nao pode reescrever.
+        projection.applyCancelled(id, id, id, Instant.parse("2026-07-10T14:00:00Z"), Instant.parse("2026-07-09T11:00:00Z"), tie, 3L);
+
+        assertEquals(AppointmentStatus.SCHEDULED, projection.getStatus());
+        assertEquals(5L, projection.getAggregateVersion());
+
+        // aggregateVersion IGUAL tambem nao reescreve (so estritamente maior vence).
+        projection.applyCancelled(id, id, id, Instant.parse("2026-07-10T14:00:00Z"), Instant.parse("2026-07-09T11:00:00Z"), tie, 5L);
+        assertEquals(AppointmentStatus.SCHEDULED, projection.getStatus());
+
+        // aggregateVersion MAIOR reescreve mesmo com occurredAt anterior ao empate: a
+        // versao decide, occurredAt nao e consultado quando os dois lados a tem.
+        projection.applyCancelled(
+                id, id, id, Instant.parse("2026-07-10T14:00:00Z"), Instant.parse("2026-07-09T11:00:00Z"),
+                Instant.parse("2026-07-09T09:00:00Z"), 6L
+        );
+        assertEquals(AppointmentStatus.CANCELLED, projection.getStatus());
+        assertEquals(6L, projection.getAggregateVersion());
+    }
+
+    // Linha ja tem aggregateVersion (de um evento anterior versionado); o evento novo
+    // chega sem o campo (replay de antes da mudanca, ou agregado sem versao). Falta em
+    // um dos lados tem de cair na regra antiga de occurredAt, nao travar a projecao.
+    @Test
+    void fallsBackToOccurredAtRuleWhenOnlyExistingRowHasAggregateVersion() {
+        AppointmentProjection projection = new AppointmentProjection();
+        UUID id = UUID.randomUUID();
+
+        projection.applyScheduled(
+                id, id, id, Instant.parse("2026-07-10T14:00:00Z"), false, null, "P", "D", "S",
+                Instant.parse("2026-07-09T10:00:00Z"), 5L
+        );
+
+        projection.applyCancelled(
+                id, id, id, Instant.parse("2026-07-10T14:00:00Z"), Instant.parse("2026-07-09T11:00:00Z"),
+                Instant.parse("2026-07-09T10:00:00.001Z"), null
+        );
+
+        assertEquals(AppointmentStatus.CANCELLED, projection.getStatus());
+    }
+
+    // Sem aggregateVersion em nenhum dos dois lados (evento de antes da mudanca, ou
+    // replay desde o offset zero), a projecao tem de continuar reconstruivel pela
+    // regra antiga de occurredAt — a guarda de aggregateVersion nao pode interferir.
+    @Test
+    void applyStillUsesOccurredAtRuleWhenAggregateVersionIsAbsent() {
+        AppointmentProjection projection = new AppointmentProjection();
+        UUID id = UUID.randomUUID();
+
+        projection.applyScheduled(
+                id, id, id, Instant.parse("2026-07-10T14:00:00Z"), false, null, "P", "D", "S",
+                Instant.parse("2026-07-09T10:00:00Z"), null
+        );
+        projection.applyCancelled(
+                id, id, id, Instant.parse("2026-07-10T14:00:00Z"), Instant.parse("2026-07-09T11:00:00Z"),
+                Instant.parse("2026-07-09T10:00:00.001Z"), null
+        );
+
+        assertEquals(AppointmentStatus.CANCELLED, projection.getStatus());
     }
 
     private Instant setFieldAndGet(AppointmentProjection p, String f) {

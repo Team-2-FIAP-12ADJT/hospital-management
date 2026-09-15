@@ -100,7 +100,8 @@ class AppointmentEventConsumerTest {
                 null,
                 "Ana Ribeiro",
                 "Dr. Paulo Menezes",
-                "Cardiologia"
+                "Cardiologia",
+                null
         );
     }
 
@@ -117,7 +118,8 @@ class AppointmentEventConsumerTest {
                 null,
                 "Ana Ribeiro",
                 "Dr. Paulo Menezes",
-                "Cardiologia"
+                "Cardiologia",
+                null
         );
     }
 
@@ -129,7 +131,8 @@ class AppointmentEventConsumerTest {
                 UUID.fromString("3f2b8c10-5d47-4e91-9a2e-7c6f1b0d8e33"),
                 UUID.fromString("b91c4d72-8a05-4f36-b1de-0e5a72c4f118"),
                 Instant.parse("2026-09-02T13:30:00.000Z"),
-                Instant.parse("2026-09-02T13:30:00.000Z")
+                Instant.parse("2026-09-02T13:30:00.000Z"),
+                null
         );
     }
 
@@ -141,7 +144,8 @@ class AppointmentEventConsumerTest {
                 UUID.fromString("3f2b8c10-5d47-4e91-9a2e-7c6f1b0d8e33"),
                 UUID.fromString("b91c4d72-8a05-4f36-b1de-0e5a72c4f118"),
                 Instant.parse("2026-09-02T13:30:00.000Z"),
-                Instant.parse("2026-09-02T13:30:00.000Z")
+                Instant.parse("2026-09-02T13:30:00.000Z"),
+                null
         );
     }
 }

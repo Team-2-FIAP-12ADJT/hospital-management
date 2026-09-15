@@ -6,8 +6,16 @@ Um campo acrescentado sem critério quebra alguém, e com retenção infinita
 (ADR-0004) o consumidor precisa continuar entendendo o que foi publicado no
 primeiro dia.
 
-Todo evento carrega um envelope com `eventId`, `eventType`, `eventVersion` e
-`occurredAt`, além do corpo.
+Todo evento carrega um envelope com `eventId`, `eventType`, `eventVersion`,
+`occurredAt` e `aggregateVersion`, além do corpo.
+
+O `aggregateVersion` entrou em 2026-09-15 e é a única fonte de ordem entre fatos do
+mesmo agregado: `occurredAt` tem precisão de milissegundo e empata, e a ordem da
+partição deixa de valer depois de um replay da DLT, que republica o registro antigo
+com offset maior. Ele é **opcional por construção** — agregado sem versão publica
+`null`, e evento gravado antes desta data não o traz —, então o consumidor cai em
+`occurredAt` quando ele falta. Essa entrada foi, ela própria, a primeira mudança
+aditiva do projeto, e manteve `eventVersion` em `1`, como esta decisão determina.
 
 **Mudança compatível é aditiva.** Acrescentar campo opcional mantém a versão.
 Consumidor **ignora campo desconhecido** — desserialização estrita quebraria todo

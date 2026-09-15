@@ -27,6 +27,7 @@ public class OutboxEventWriter {
         UUID aggregateId,
         String eventType,
         int eventVersion,
+        Long aggregateVersion,
         Instant occurredAt,
         Object data
     ) {
@@ -40,6 +41,7 @@ public class OutboxEventWriter {
             eventType,
             eventVersion,
             truncatedOccurredAt,
+            aggregateVersion,
             data
         );
         String envelopeJson = mapper.writeValueAsString(envelope);

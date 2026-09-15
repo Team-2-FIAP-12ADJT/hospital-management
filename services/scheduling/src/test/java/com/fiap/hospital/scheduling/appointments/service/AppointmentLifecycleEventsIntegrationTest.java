@@ -110,6 +110,36 @@ class AppointmentLifecycleEventsIntegrationTest {
             .isEqualTo(1L);
     }
 
+    // O desempate do history depende de o produtor publicar a versao POS-incremento em
+    // cada transicao: publicar null, ou a versao lida antes do flush, deixaria a projecao
+    // sem criterio de ordem e nenhuma outra assercao da suite perceberia.
+    @Test
+    void eachTransitionPublishesTheAggregateVersionItProduced() {
+        Appointment appointment = service.schedule(PATIENT, DOCTOR, SLOT, false, null);
+        service.reschedule(appointment.getId(), SLOT.plusSeconds(7200), false, null);
+        service.cancel(appointment.getId());
+
+        assertThat(aggregateVersionOf(appointment.getId(), "AppointmentScheduled"))
+            .as("consulta recem-inserida nasce na versao 0")
+            .isEqualTo(0L);
+        assertThat(aggregateVersionOf(appointment.getId(), "AppointmentRescheduled"))
+            .as("cada transicao sobe a versao do agregado")
+            .isEqualTo(1L);
+        assertThat(aggregateVersionOf(appointment.getId(), "AppointmentCancelled"))
+            .isEqualTo(2L);
+    }
+
+    // Conclusao vive em agendamento proprio: cancelar e concluir sao transicoes
+    // terminais e nao acontecem na mesma consulta.
+    @Test
+    void completingPublishesTheAggregateVersionItProduced() {
+        Appointment appointment = service.schedule(PATIENT, DOCTOR, SLOT, false, null);
+        service.complete(appointment.getId());
+
+        assertThat(aggregateVersionOf(appointment.getId(), "AppointmentCompleted"))
+            .isEqualTo(1L);
+    }
+
     @Test
     void cancellingAfterReschedulingKeepsBothEventsOnTheSameAggregate() {
         Appointment appointment = service.schedule(PATIENT, DOCTOR, SLOT, false, null);
@@ -157,7 +187,21 @@ class AppointmentLifecycleEventsIntegrationTest {
             .single();
     }
 
+    private long aggregateVersionOf(UUID appointmentId, String eventType) {
+        JsonNode version = envelopeOf(appointmentId, eventType).get("aggregateVersion");
+        // asLong() devolve 0 para JSON null, e 0 e justamente a versao esperada do
+        // evento de criacao: sem exigir no numerico, publicar null passaria verde.
+        assertThat(version.isIntegralNumber())
+            .as("aggregateVersion de %s precisa ser numero, nao null", eventType)
+            .isTrue();
+        return version.asLong();
+    }
+
     private JsonNode payloadOf(UUID appointmentId, String eventType) {
+        return envelopeOf(appointmentId, eventType).get("data");
+    }
+
+    private JsonNode envelopeOf(UUID appointmentId, String eventType) {
         assertThat(countOf(appointmentId, eventType)).isEqualTo(1L);
 
         String envelope = jdbc.sql("""
@@ -178,6 +222,6 @@ class AppointmentLifecycleEventsIntegrationTest {
             .isEqualTo(appointmentId.toString());
         assertThat(root.get("data").get("patientId").asString()).isEqualTo(PATIENT.toString());
         assertThat(root.get("data").get("doctorId").asString()).isEqualTo(DOCTOR.toString());
-        return root.get("data");
+        return root;
     }
 }

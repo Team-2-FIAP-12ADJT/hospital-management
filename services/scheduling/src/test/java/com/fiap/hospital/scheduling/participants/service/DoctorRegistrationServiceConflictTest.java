@@ -85,6 +85,7 @@ class DoctorRegistrationServiceConflictTest {
                 any(),
                 anyInt(),
                 any(),
+                any(),
                 any()
             )
         ).thenThrow(

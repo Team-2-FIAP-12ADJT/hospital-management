@@ -35,21 +35,21 @@ public class ApplyAppointmentEvent {
                     m.appointmentId(), m.patientId(), m.doctorId(),
                     m.scheduledAt(), m.fitIn(), m.fitInReason(),
                     m.patientName(), m.doctorName(), m.doctorSpecialty(),
-                    m.occurredAt()
+                    m.occurredAt(), m.aggregateVersion()
             );
             case AppointmentRescheduledMessage m -> row.applyRescheduled(
                     m.appointmentId(), m.patientId(), m.doctorId(),
                     m.scheduledAt(), m.fitIn(), m.fitInReason(),
                     m.patientName(), m.doctorName(), m.doctorSpecialty(),
-                    m.occurredAt()
+                    m.occurredAt(), m.aggregateVersion()
             );
             case AppointmentCancelledMessage m -> row.applyCancelled(
                     m.appointmentId(), m.patientId(), m.doctorId(),
-                    m.scheduledAt(), m.cancelledAt(), m.occurredAt()
+                    m.scheduledAt(), m.cancelledAt(), m.occurredAt(), m.aggregateVersion()
             );
             case AppointmentCompletedMessage m -> row.applyCompleted(
                     m.appointmentId(), m.patientId(), m.doctorId(),
-                    m.scheduledAt(), m.completedAt(), m.occurredAt()
+                    m.scheduledAt(), m.completedAt(), m.occurredAt(), m.aggregateVersion()
             );
         }
 

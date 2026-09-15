@@ -49,7 +49,8 @@ class AppointmentEventParser {
                 optionalText(data, "fitInReason"),
                 requiredText(data, "patientName"),
                 requiredText(data, "doctorName"),
-                requiredText(data, "doctorSpecialty")
+                requiredText(data, "doctorSpecialty"),
+                aggregateVersion(root)
         );
     }
 
@@ -67,7 +68,8 @@ class AppointmentEventParser {
                 optionalText(data, "fitInReason"),
                 requiredText(data, "patientName"),
                 requiredText(data, "doctorName"),
-                requiredText(data, "doctorSpecialty")
+                requiredText(data, "doctorSpecialty"),
+                aggregateVersion(root)
         );
     }
 
@@ -80,7 +82,8 @@ class AppointmentEventParser {
                 requiredUuid(data, "patientId"),
                 requiredUuid(data, "doctorId"),
                 requiredInstant(data, "scheduledAt"),
-                requiredInstant(data, "cancelledAt")
+                requiredInstant(data, "cancelledAt"),
+                aggregateVersion(root)
         );
     }
 
@@ -93,7 +96,8 @@ class AppointmentEventParser {
                 requiredUuid(data, "patientId"),
                 requiredUuid(data, "doctorId"),
                 requiredInstant(data, "scheduledAt"),
-                requiredInstant(data, "completedAt")
+                requiredInstant(data, "completedAt"),
+                aggregateVersion(root)
         );
     }
 
@@ -120,6 +124,12 @@ class AppointmentEventParser {
 
     private static Instant occurredAt(JsonNode root) {
         return requiredInstant(root, "occurredAt");
+    }
+
+    // Campo opcional (ADR do envelope): eventos publicados antes desta mudanca, e o
+    // replay desde o offset zero, nao o carregam. Ausencia nao e erro de contrato.
+    private static Long aggregateVersion(JsonNode root) {
+        return optionalLong(root, "aggregateVersion");
     }
 
     private static UUID appointmentId(JsonNode data) {
@@ -161,6 +171,14 @@ class AppointmentEventParser {
             return null;
         }
         return value.asString();
+    }
+
+    private static Long optionalLong(JsonNode node, String field) {
+        JsonNode value = node.get(field);
+        if (value == null || value.isNull() || !value.isIntegralNumber()) {
+            return null;
+        }
+        return value.asLong();
     }
 
     private static boolean requiredBoolean(JsonNode node, String field) {

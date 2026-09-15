@@ -10,5 +10,6 @@ record AppointmentCancelledMessage(
         UUID patientId,
         UUID doctorId,
         Instant scheduledAt,
-        Instant cancelledAt
+        Instant cancelledAt,
+        Long aggregateVersion
 ) implements AppointmentEvent {}

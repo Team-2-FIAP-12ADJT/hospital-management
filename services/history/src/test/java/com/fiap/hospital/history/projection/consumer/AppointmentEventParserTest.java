@@ -38,6 +38,51 @@ class AppointmentEventParserTest {
         assertFalse(((AppointmentScheduledMessage) parser.parse(envelope(false, null))).fitIn());
     }
 
+    // aggregateVersion e opcional (contrato do envelope): quando presente, o parser
+    // devolve o valor numerico, nao apenas null.
+    @Test
+    void parsesAggregateVersionWhenPresent() {
+        String json = envelope(false, null).replace(
+                "\"eventVersion\": 1,",
+                "\"eventVersion\": 1,\n  \"aggregateVersion\": 7,"
+        );
+
+        AppointmentScheduledMessage message = (AppointmentScheduledMessage) parser.parse(json);
+
+        assertEquals(7L, message.aggregateVersion());
+    }
+
+    @Test
+    void aggregateVersionIsNullWhenAbsentFromEnvelope() {
+        AppointmentScheduledMessage message = (AppointmentScheduledMessage) parser.parse(envelope(false, null));
+
+        assertNull(message.aggregateVersion());
+    }
+
+    @Test
+    void aggregateVersionIsNullWhenExplicitJsonNull() {
+        String json = envelope(false, null).replace(
+                "\"eventVersion\": 1,",
+                "\"eventVersion\": 1,\n  \"aggregateVersion\": null,"
+        );
+
+        AppointmentScheduledMessage message = (AppointmentScheduledMessage) parser.parse(json);
+
+        assertNull(message.aggregateVersion());
+    }
+
+    @Test
+    void aggregateVersionIsNullWhenNotAnInteger() {
+        String json = envelope(false, null).replace(
+                "\"eventVersion\": 1,",
+                "\"eventVersion\": 1,\n  \"aggregateVersion\": \"nao-numero\","
+        );
+
+        AppointmentScheduledMessage message = (AppointmentScheduledMessage) parser.parse(json);
+
+        assertNull(message.aggregateVersion());
+    }
+
     @Test
     void ignoresUnknownEventType() {
         UnsupportedAppointmentEventException ex = assertThrows(

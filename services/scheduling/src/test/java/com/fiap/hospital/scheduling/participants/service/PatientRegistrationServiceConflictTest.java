@@ -72,6 +72,7 @@ class PatientRegistrationServiceConflictTest {
                 any(),
                 anyInt(),
                 any(),
+                any(),
                 any()
             )
         ).thenThrow(

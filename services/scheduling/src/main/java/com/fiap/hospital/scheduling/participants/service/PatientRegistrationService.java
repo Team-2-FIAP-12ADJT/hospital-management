@@ -75,6 +75,7 @@ public class PatientRegistrationService {
             patient.getId(),
             EVENT_TYPE,
             EVENT_VERSION,
+            null,
             Instant.now(),
             event
         );

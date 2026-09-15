@@ -99,6 +99,7 @@ class OutboxEventWriterTest {
                 patientId,
                 "PatientRegistered",
                 1,
+                null,
                 Instant.parse("2026-08-17T14:05:03.123456789Z"),
                 new PatientRegisteredData(patientId, "Paciente de Teste")
             );
@@ -128,6 +129,7 @@ class OutboxEventWriterTest {
                     patientId,
                     "PatientRegistered",
                     1,
+                    null,
                     Instant.parse("2026-08-17T14:05:03.123456789Z"),
                     new PatientRegisteredData(patientId, "Paciente de Teste")
                 );
@@ -155,6 +157,7 @@ class OutboxEventWriterTest {
                 UUID.randomUUID(),
                 "PatientRegistered",
                 1,
+                null,
                 Instant.now(),
                 new PatientRegisteredData(
                     UUID.randomUUID(),
@@ -183,6 +186,7 @@ class OutboxEventWriterTest {
                 patientId,
                 "PatientRegistered",
                 1,
+                null,
                 occurredAt,
                 data
             );
@@ -196,6 +200,8 @@ class OutboxEventWriterTest {
         assertThat(root.has("eventVersion")).isTrue();
         assertThat(root.has("occurredAt")).isTrue();
         assertThat(root.has("data")).isTrue();
+        assertThat(root.has("aggregateVersion")).isTrue();
+        assertThat(root.get("aggregateVersion").isNull()).isTrue();
 
         assertThat(event.id()).isEqualTo(eventId);
         assertThat(root.get("eventId").asString()).isEqualTo(
@@ -246,6 +252,7 @@ class OutboxEventWriterTest {
                 patientId,
                 "PatientRegistered",
                 1,
+                null,
                 occurredAt,
                 data
             );

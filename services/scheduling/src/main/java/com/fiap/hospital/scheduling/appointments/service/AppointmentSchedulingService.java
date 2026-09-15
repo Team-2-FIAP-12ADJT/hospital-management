@@ -75,13 +75,15 @@ public class AppointmentSchedulingService {
             doctor.name(),
             doctor.specialty()
         );
-        publish(appointment.getId(), SCHEDULED_EVENT_TYPE, now, event);
+        publish(appointment.getId(), SCHEDULED_EVENT_TYPE, now, appointment.getVersion(), event);
         return appointment;
     }
 
-    private void publish(UUID appointmentId, String eventType, Instant occurredAt, Object data) {
+    private void publish(
+        UUID appointmentId, String eventType, Instant occurredAt, Long aggregateVersion, Object data
+    ) {
         outboxEventWriter.append(
-            Aggregate.APPOINTMENT, appointmentId, eventType, EVENT_VERSION, occurredAt, data
+            Aggregate.APPOINTMENT, appointmentId, eventType, EVENT_VERSION, aggregateVersion, occurredAt, data
         );
     }
 
@@ -108,7 +110,7 @@ public class AppointmentSchedulingService {
 
         PatientSummary patient = participantDirectory.patient(saved.getPatientId());
         DoctorSummary doctor = participantDirectory.doctor(saved.getDoctorId());
-        publish(saved.getId(), RESCHEDULED_EVENT_TYPE, now, new AppointmentRescheduledEvent(
+        publish(saved.getId(), RESCHEDULED_EVENT_TYPE, now, saved.getVersion(), new AppointmentRescheduledEvent(
             saved.getId(),
             saved.getPatientId(),
             saved.getDoctorId(),
@@ -131,7 +133,7 @@ public class AppointmentSchedulingService {
         appointment.cancel(now);
         appointmentRepository.saveAndFlush(appointment);
 
-        publish(appointment.getId(), CANCELLED_EVENT_TYPE, now, new AppointmentCancelledEvent(
+        publish(appointment.getId(), CANCELLED_EVENT_TYPE, now, appointment.getVersion(), new AppointmentCancelledEvent(
             appointment.getId(),
             appointment.getPatientId(),
             appointment.getDoctorId(),
@@ -151,7 +153,7 @@ public class AppointmentSchedulingService {
         }
         appointmentRepository.saveAndFlush(appointment);
 
-        publish(appointment.getId(), COMPLETED_EVENT_TYPE, now, new AppointmentCompletedEvent(
+        publish(appointment.getId(), COMPLETED_EVENT_TYPE, now, appointment.getVersion(), new AppointmentCompletedEvent(
             appointment.getId(),
             appointment.getPatientId(),
             appointment.getDoctorId(),

@@ -10,5 +10,6 @@ record AppointmentCompletedMessage(
         UUID patientId,
         UUID doctorId,
         Instant scheduledAt,
-        Instant completedAt
+        Instant completedAt,
+        Long aggregateVersion
 ) implements AppointmentEvent {}

@@ -87,7 +87,8 @@ class ApplyAppointmentEventTest {
                 firstMessage.patientName(),
                 firstMessage.doctorName(),
                 firstMessage.doctorSpecialty(),
-                Instant.parse("2026-09-02T14:00:00.000Z") // newer appliedAt
+                Instant.parse("2026-09-02T14:00:00.000Z"), // newer appliedAt
+                null
         );
         
         when(appointments.findById(firstMessage.appointmentId())).thenReturn(Optional.of(existing));
@@ -115,7 +116,8 @@ class ApplyAppointmentEventTest {
                 firstMessage.patientId(),
                 firstMessage.doctorId(),
                 firstMessage.scheduledAt(),
-                Instant.parse("2026-09-02T13:45:00.000Z")
+                Instant.parse("2026-09-02T13:45:00.000Z"),
+                null
         );
         
         when(appointments.findById(olderCancel.appointmentId())).thenReturn(Optional.of(existing));
@@ -142,7 +144,8 @@ class ApplyAppointmentEventTest {
                 reason,
                 "Ana Ribeiro",
                 "Dr. Paulo Menezes",
-                "Cardiologia"
+                "Cardiologia",
+                null
         );
     }
     @Test
@@ -151,7 +154,8 @@ class ApplyAppointmentEventTest {
                 UUID.randomUUID(), Instant.parse("2026-07-09T10:00:00Z"),
                 UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
                 Instant.parse("2026-07-10T14:00:00Z"), Instant.parse("2026-07-11T14:00:00Z"),
-                false, null, "P", "D", "S"
+                false, null, "P", "D", "S",
+                null
         );
         when(appointments.findById(message.appointmentId())).thenReturn(Optional.empty());
         doAnswer(invocation -> {
@@ -169,7 +173,8 @@ class ApplyAppointmentEventTest {
         AppointmentCancelledMessage message = new AppointmentCancelledMessage(
                 UUID.randomUUID(), Instant.parse("2026-07-09T10:00:00Z"),
                 UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
-                Instant.parse("2026-07-11T14:00:00Z"), Instant.parse("2026-07-09T11:00:00Z")
+                Instant.parse("2026-07-11T14:00:00Z"), Instant.parse("2026-07-09T11:00:00Z"),
+                null
         );
         when(appointments.findById(message.appointmentId())).thenReturn(Optional.empty());
         doAnswer(invocation -> {
@@ -187,7 +192,8 @@ class ApplyAppointmentEventTest {
         AppointmentCompletedMessage message = new AppointmentCompletedMessage(
                 UUID.randomUUID(), Instant.parse("2026-07-09T10:00:00Z"),
                 UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
-                Instant.parse("2026-07-11T14:00:00Z"), Instant.parse("2026-07-09T11:00:00Z")
+                Instant.parse("2026-07-11T14:00:00Z"), Instant.parse("2026-07-09T11:00:00Z"),
+                null
         );
         when(appointments.findById(message.appointmentId())).thenReturn(Optional.empty());
         doAnswer(invocation -> {

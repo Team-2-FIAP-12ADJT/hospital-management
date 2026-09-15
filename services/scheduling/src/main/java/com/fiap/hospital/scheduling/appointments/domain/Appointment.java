@@ -9,6 +9,7 @@ import jakarta.persistence.PostLoad;
 import jakarta.persistence.PostPersist;
 import jakarta.persistence.Table;
 import jakarta.persistence.Transient;
+import jakarta.persistence.Version;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.UUID;
@@ -48,6 +49,12 @@ public class Appointment implements Persistable<UUID> {
 
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
+
+    // Desempate de eventos empatados em occurredAt (envelope trunca em milissegundos):
+    // o history compara aggregateVersion quando os dois lados do evento tem o campo.
+    @Version
+    @Column(name = "version", nullable = false)
+    private Long version;
 
     @Transient
     private boolean isNew = true;
@@ -201,4 +208,5 @@ public class Appointment implements Persistable<UUID> {
     public Instant getCancelledAt() { return cancelledAt; }
     public Instant getCompletedAt() { return completedAt; }
     public Instant getCreatedAt() { return createdAt; }
+    public Long getVersion() { return version; }
 }

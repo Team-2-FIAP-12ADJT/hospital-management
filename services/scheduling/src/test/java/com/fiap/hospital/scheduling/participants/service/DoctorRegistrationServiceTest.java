@@ -84,10 +84,11 @@ class DoctorRegistrationServiceTest {
             .single();
 
         JsonNode root = mapper.readTree(envelope);
-        assertThat(root.size()).isEqualTo(5);
+        assertThat(root.size()).isEqualTo(6);
         assertThat(root.get("eventType").asString()).isEqualTo(
             "DoctorRegistered"
         );
+        assertThat(root.get("aggregateVersion").isNull()).isTrue();
         assertThat(root.get("data").size()).isEqualTo(7);
 
         Set<String> dataFields = new HashSet<>();

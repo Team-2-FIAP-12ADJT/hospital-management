@@ -51,7 +51,8 @@ public class DoctorRegistrationService {
 
         DoctorRegisteredEvent event = new DoctorRegisteredEvent(
                 doctor.getId(), taxIdentifier, crm, specialty, name, email, ROLE);
-        outboxEventWriter.append(Aggregate.PERSON, doctor.getId(), EVENT_TYPE, EVENT_VERSION, Instant.now(), event);
+        outboxEventWriter.append(
+                Aggregate.PERSON, doctor.getId(), EVENT_TYPE, EVENT_VERSION, null, Instant.now(), event);
 
         return doctor;
     }
