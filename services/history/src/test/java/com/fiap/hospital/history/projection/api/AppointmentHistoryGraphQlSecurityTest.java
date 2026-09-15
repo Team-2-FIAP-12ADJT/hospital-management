@@ -30,7 +30,7 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 
-@SpringBootTest
+@SpringBootTest(properties = "spring.kafka.listener.auto-startup=false")
 @Testcontainers
 class AppointmentHistoryGraphQlSecurityTest {
 
