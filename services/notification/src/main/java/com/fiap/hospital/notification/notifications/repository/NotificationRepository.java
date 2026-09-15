@@ -41,5 +41,6 @@ public interface NotificationRepository extends JpaRepository<Notification, UUID
            AND n.kind = com.fiap.hospital.notification.notifications.domain.NotificationKind.REMINDER
            AND n.status = com.fiap.hospital.notification.notifications.domain.NotificationStatus.PENDING
         """)
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
     Optional<Notification> findPendingReminder(@Param("appointmentId") UUID appointmentId);
 }
