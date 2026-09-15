@@ -1,5 +1,6 @@
 package com.fiap.hospital.notification.config;
 
+import java.time.format.DateTimeParseException;
 import org.apache.kafka.clients.admin.NewTopic;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.common.TopicPartition;
@@ -13,6 +14,7 @@ import org.springframework.kafka.support.ExponentialBackOffWithMaxRetries;
 import org.springframework.kafka.support.LoggingProducerListener;
 import org.springframework.kafka.support.ProducerListener;
 import org.springframework.util.backoff.BackOff;
+import tools.jackson.core.JacksonException;
 
 /**
  * Retry/DLT wiring shared by every @KafkaListener in this module (hospital.account
@@ -45,7 +47,25 @@ class KafkaErrorHandlingConfig {
 
     @Bean
     DefaultErrorHandler kafkaErrorHandler(KafkaTemplate<?, ?> kafkaTemplate) {
-        return new DefaultErrorHandler(deadLetterRecoverer(kafkaTemplate), backOff());
+        return errorHandler(kafkaTemplate, backOff());
+    }
+
+    /**
+     * Fonte unica do handler: recoverer, classificacao de excecao e nivel de log
+     * vivem SO aqui. O teste de recuperacao injeta um backoff comprimido por este
+     * mesmo metodo em vez de montar um handler proprio — handler de teste que
+     * reaplica a classificacao deixaria de acusar a remocao dela na producao.
+     */
+    static DefaultErrorHandler errorHandler(KafkaTemplate<?, ?> kafkaTemplate, BackOff backOff) {
+        DefaultErrorHandler handler = new DefaultErrorHandler(deadLetterRecoverer(kafkaTemplate), backOff);
+        // Envelope malformado ou campo com formato invalido e deterministico:
+        // repetir so adia a chegada na DLT.
+        handler.addNotRetryableExceptions(
+            IllegalArgumentException.class,
+            DateTimeParseException.class,
+            JacksonException.class
+        );
+        return handler;
     }
 
     // The DLT destination is derived from the record's own topic, not a fixed

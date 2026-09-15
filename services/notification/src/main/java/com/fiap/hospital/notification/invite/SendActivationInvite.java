@@ -2,6 +2,7 @@ package com.fiap.hospital.notification.invite;
 
 import com.fiap.hospital.notification.idempotency.IdempotencyService;
 import com.fiap.hospital.notification.mail.MailFailure;
+import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.mail.MailException;
@@ -23,6 +24,16 @@ class SendActivationInvite {
     ) {
         this.idempotencyService = idempotencyService;
         this.mailer = mailer;
+    }
+
+    /**
+     * Marca o evento como processado SEM enviar. Só para recusa definitiva de
+     * conteúdo: sem isto o mesmo evento quebrado voltaria a cada replay, e com isto
+     * ele para de voltar sem que nada tenha sido enviado — que é exatamente o que
+     * "grava idempotência e descarta de propósito" quer dizer.
+     */
+    void discardPermanently(UUID eventId) {
+        idempotencyService.process(CONSUMER, eventId, () -> { });
     }
 
     void send(ActivationInvite invite) {

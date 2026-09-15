@@ -54,7 +54,49 @@ rota aberta por descuido não produz erro visível. Nenhuma delas cria credencia
 diretamente, e o papel nunca chega pelo cliente.
 
 O `identity` passa a publicar evento, o que lhe custa outbox, replicação lógica e
-um segundo conector Debezium. Em troca, nada sensível trafega por tópico.
+um segundo conector Debezium.
+
+🔴 **A frase "em troca, nada sensível trafega por tópico" esteve aqui até 2026-09-15
+e era falsa.** Medido: `UserActivationRequested` carrega o `activationToken` **em
+claro** no `data`, porque é o `notification` quem monta o e-mail e ele precisa do
+token utilizável. O evento trafega em `hospital.account`, que sobe com
+`retention.ms = -1` (ADR-0004) e é inspecionável no kafbat-ui, publicado **sem
+autenticação**. Ou seja: o desenho adotado recai no mesmo problema pelo qual a
+alternativa acima — token nascendo no `scheduling` e viajando no evento de cadastro —
+foi recusada. Mudou o tópico, não a exposição.
+
+**A saída correta, não implementada:** o evento carrega só `userId` e dados de
+exibição, e o `notification` obtém o token por rota autenticada no `identity` no
+momento do envio. ⚠ Não é "buscar": como o `identity` guarda apenas o hash, ele
+teria de **gerar** o token na consulta, movendo a âncora de validade e de uso único
+do cadastro para o envio. Exige ainda tipo de evento novo — remover campo é mudança
+incompatível pelo contrato —, autenticação serviço-a-serviço, que não existe neste
+projeto, e cria dependência de runtime `notification → identity` no caminho de envio.
+
+**Por que não foi feito:** decidido em 2026-09-15, com o sistema já entregue e em
+avaliação, que o custo — dois serviços, contrato incompatível, mecanismo de
+autenticação inexistente — é desproporcional ao risco real neste contexto: dados
+semeados e fictícios, ambiente local, uso restrito à avaliação. ⚠ **O painel não é
+"só local":** o Compose publica `${KAFBAT_UI_PORT:-8090}:8080` sem restringir o
+endereço de escuta, então quem alcançar o host pela rede alcança o painel.
+A dívida fica nomeada aqui em vez de corrigida em silêncio.
+
+**Redigir o token na DLT foi implementado, medido e REVERTIDO em 2026-09-15.** A
+mitigação fechava os dois caminhos que levam o evento à DLT — defeito de conteúdo e
+evento válido cuja entrega esgota o retry — mas não tocava no tópico de domínio, que é
+onde a exposição está, e cobrava três preços: não alcançava os cabeçalhos que o
+recoverer preenche com mensagem e stacktrace da exceção; falhava **aberta** quando não
+conseguia localizar o campo (JSON truncado, `data` em outro formato), devolvendo o corpo
+original; e o marcador que injetava viraria convite inutilizável se alguém reprocessasse
+a mensagem da DLT. Meia proteção que falha aberta dá a impressão de assunto resolvido.
+
+⭐ **A decisão, e o motivo real:** neste projeto o token trafega em claro **de
+propósito**. O `kafbat-ui` existe para demonstrar a cadeia assíncrona e permitir a
+inspeção das mensagens durante a avaliação (ADR-0004), e um payload redigido esconde
+exatamente o que a ferramenta foi posta ali para mostrar. O contexto sustenta a escolha:
+dados semeados e fictícios, ambiente efêmero de avaliação, nenhuma conta real. Fora
+desse contexto a decisão se inverte, e o caminho correto é o descrito acima — evento sem
+segredo, token obtido por rota autenticada.
 
 Um token permanece válido até expirar mesmo que a conta seja desativada nesse
 intervalo. É consequência aceita da validação offline — a alternativa seria

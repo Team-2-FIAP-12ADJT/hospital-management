@@ -29,6 +29,14 @@ inspecionar a DLT durante a avaliação. Em contrapartida, o painel é publicado
 autenticação, então nenhum conteúdo sensível pode trafegar nos tópicos — o que
 condiciona o desenho do fluxo de ativação (ADR-0013).
 
+🔴 **Esta regra é violada hoje, e a violação é deliberada e registrada.** Medido em
+2026-09-15: `UserActivationRequested` carrega o token de ativação em claro em
+`hospital.account`, tópico com `retention.ms = -1` e visível no painel sem
+autenticação. O motivo, as alternativas e a razão de não corrigir agora estão no
+ADR-0013 §Consequences. Autenticar o painel foi considerado e **recusado**: o
+kafbat-ui existe para a inspeção livre durante a avaliação, e um login a mais
+atrapalharia exatamente o que ele foi posto para permitir.
+
 A retenção infinita faz o disco crescer de forma monotônica. Num sistema com
 volume real, a saída seria compactação por chave nos tópicos de estado e um
 snapshot periódico da projeção, para que a reconstrução não precisasse voltar ao

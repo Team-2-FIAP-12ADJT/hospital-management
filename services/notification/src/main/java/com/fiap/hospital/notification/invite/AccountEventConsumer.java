@@ -41,10 +41,17 @@ class AccountEventConsumer {
                 partition, offset
             );
             return;
-        } catch (RuntimeException ex) {
+        } catch (RejectedActivationInviteException ex) {
+            // Recusa DEFINITIVA de conteúdo: repetir nunca funciona, e mandar para a
+            // DLT copiaria o token de ativação em claro para um tópico legível no
+            // kafbat-ui, que é publicado. Grava idempotência e descarta de propósito,
+            // como manda a regra de falha permanente. O eventId no log acha a linha
+            // original em outbox_events, que é append-only; o VALOR recusado não entra
+            // no log, porque o payload carrega o token.
+            sendActivationInvite.discardPermanently(ex.eventId());
             log.error(
-                "discarding unparseable message on hospital.account, partition={} offset={} cause={}",
-                partition, offset, ex.getClass().getSimpleName()
+                "discarding activation invite permanently: eventId={} field={} partition={} offset={}",
+                ex.eventId(), ex.field(), partition, offset
             );
             return;
         }

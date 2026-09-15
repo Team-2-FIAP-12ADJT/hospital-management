@@ -1,7 +1,9 @@
 package com.fiap.hospital.notification.invite;
 
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verifyNoInteractions;
 
 import java.util.UUID;
@@ -18,15 +20,16 @@ class AccountEventConsumerTest {
     private SendActivationInvite sendActivationInvite;
 
     @Test
-    void discardsMalformedJson() {
-        receive("{not-json");
+    void propagatesMalformedJsonForTheContainerErrorHandlerToClassify() {
+        assertThrows(RuntimeException.class, () -> receive("{not-json"));
 
         verifyNoInteractions(sendActivationInvite);
     }
 
     @Test
-    void discardsEnvelopeMissingRequiredField() {
-        receive("{\"eventId\":\"" + UUID.randomUUID() + "\"}");
+    void propagatesEnvelopeMissingRequiredFieldForTheContainerErrorHandlerToClassify() {
+        assertThrows(RuntimeException.class,
+            () -> receive("{\"eventId\":\"" + UUID.randomUUID() + "\"}"));
 
         verifyNoInteractions(sendActivationInvite);
     }
@@ -38,13 +41,45 @@ class AccountEventConsumerTest {
         verifyNoInteractions(sendActivationInvite);
     }
 
+    // Recusa definitiva de conteudo NAO propaga: iria para a DLT e levaria o token
+    // de ativacao em claro para um topico legivel no kafbat-ui, que e publicado.
+    // Grava idempotencia e descarta de proposito.
     @Test
-    void discardsInvalidEmailWithoutSending() {
+    void invalidEmailIsDiscardedPermanentlyWithIdempotencyRecordedAndWithoutSending() {
+        UUID eventId = UUID.randomUUID();
+
         receive(AccountEventFixtures.userActivationRequested(
-            UUID.randomUUID(), UUID.randomUUID(), "tok", "not-an-email"
+            eventId, UUID.randomUUID(), "tok", "not-an-email"
         ));
 
-        verifyNoInteractions(sendActivationInvite);
+        verify(sendActivationInvite).discardPermanently(eventId);
+        verify(sendActivationInvite, never()).send(any());
+    }
+
+    // Campo ausente ou em branco tambem esta no mesmo payload do token: mandar para
+    // a DLT por ser "malformado" vazaria o segredo do mesmo jeito.
+    @Test
+    void blankEmailIsDiscardedPermanentlyInsteadOfGoingToTheDlt() {
+        UUID eventId = UUID.randomUUID();
+
+        receive(AccountEventFixtures.userActivationRequested(
+            eventId, UUID.randomUUID(), "tok", "   "
+        ));
+
+        verify(sendActivationInvite).discardPermanently(eventId);
+        verify(sendActivationInvite, never()).send(any());
+    }
+
+    @Test
+    void headerInjectionInTheEmailIsDiscardedTheSameWay() {
+        UUID eventId = UUID.randomUUID();
+
+        receive(AccountEventFixtures.userActivationRequested(
+            eventId, UUID.randomUUID(), "tok", "vitima@exemplo.test\r\nBcc: atacante@exemplo.test"
+        ));
+
+        verify(sendActivationInvite).discardPermanently(eventId);
+        verify(sendActivationInvite, never()).send(any());
     }
 
     @Test

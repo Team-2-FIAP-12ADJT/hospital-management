@@ -43,7 +43,6 @@ public class NotificationDispatcher {
     public void sweep() {
         List<Notification> due = notifications.findDue(
             clock.instant(),
-            properties.maxAttempts(),
             Limit.of(properties.dispatchBatchSize())
         );
         due.forEach(notification -> {

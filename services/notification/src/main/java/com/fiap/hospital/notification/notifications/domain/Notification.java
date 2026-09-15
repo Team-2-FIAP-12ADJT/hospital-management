@@ -57,6 +57,12 @@ public class Notification implements Persistable<UUID> {
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
+    // Só em estado terminal: diz POR QUE parou de ser tentada. `attempts` sozinho
+    // não separa transitória esgotada de envenenada.
+    @Enumerated(EnumType.STRING)
+    @Column(name = "terminal_reason", length = 30)
+    private TerminalReason terminalReason;
+
     @Transient
     private boolean isNew = true;
 
@@ -138,14 +144,16 @@ public class Notification implements Persistable<UUID> {
         this.attempts++;
     }
 
-    public void markFailed() {
+    public void markFailed(TerminalReason reason) {
         requireStatus(NotificationStatus.PENDING);
         this.status = NotificationStatus.FAILED;
+        this.terminalReason = require(reason, "reason");
     }
 
-    public void markAbandoned() {
+    public void markAbandoned(TerminalReason reason) {
         requireStatus(NotificationStatus.PENDING);
         this.status = NotificationStatus.ABANDONED;
+        this.terminalReason = require(reason, "reason");
     }
 
     private void requireStatus(NotificationStatus expected) {
@@ -197,6 +205,8 @@ public class Notification implements Persistable<UUID> {
     public String getDoctorSpecialty() { return doctorSpecialty; }
     public Instant getFireAt() { return fireAt; }
     public short getAttempts() { return attempts; }
+
+    public TerminalReason getTerminalReason() { return terminalReason; }
     public Instant getSentAt() { return sentAt; }
     public Instant getCreatedAt() { return createdAt; }
 }

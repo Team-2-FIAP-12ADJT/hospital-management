@@ -2,7 +2,6 @@ package com.fiap.hospital.notification.notifications.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyShort;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -38,19 +37,20 @@ class NotificationDispatcherTest {
     @Mock
     private NotificationFailureRecorder failureRecorder;
 
+    // O teto de tentativas saiu da consulta: quem decide elegibilidade e o ESTADO,
+    // e a linha que esgota o teto sai de PENDING na mesma varredura. Filtrar por
+    // tentativa aqui deixava linha encalhada em PENDING quando maxAttempts baixava.
     @Test
-    void asksForDueNotificationsUnderTheAttemptCapAndBatchSize() {
-        when(notifications.findDue(any(), anyShort(), any())).thenReturn(List.of());
+    void asksForDueNotificationsByStateAndBatchSizeOnly() {
+        when(notifications.findDue(any(), any())).thenReturn(List.of());
 
         dispatcher().sweep();
 
         ArgumentCaptor<Instant> now = ArgumentCaptor.forClass(Instant.class);
-        ArgumentCaptor<Short> maxAttempts = ArgumentCaptor.forClass(Short.class);
         ArgumentCaptor<Limit> limit = ArgumentCaptor.forClass(Limit.class);
-        verify(notifications).findDue(now.capture(), maxAttempts.capture(), limit.capture());
+        verify(notifications).findDue(now.capture(), limit.capture());
 
         assertThat(now.getValue()).isEqualTo(NOW);
-        assertThat(maxAttempts.getValue()).isEqualTo((short) 3);
         assertThat(limit.getValue().max()).isEqualTo(2);
     }
 
@@ -58,7 +58,7 @@ class NotificationDispatcherTest {
     void deliversEachDueNotificationSeparately() {
         Notification first = confirmation();
         Notification second = confirmation();
-        when(notifications.findDue(any(), anyShort(), any())).thenReturn(List.of(first, second));
+        when(notifications.findDue(any(), any())).thenReturn(List.of(first, second));
 
         dispatcher().sweep();
 
@@ -70,7 +70,7 @@ class NotificationDispatcherTest {
     void continuesDeliveringTheBatchWhenOneNotificationHasAnUnexpectedFailure() {
         Notification first = confirmation();
         Notification second = confirmation();
-        when(notifications.findDue(any(), anyShort(), any())).thenReturn(List.of(first, second));
+        when(notifications.findDue(any(), any())).thenReturn(List.of(first, second));
         doThrow(new IllegalStateException("mailer exploded")).when(delivery).deliver(first.getId());
 
         dispatcher().sweep();
@@ -84,7 +84,7 @@ class NotificationDispatcherTest {
     void retriesThePoisonedNotificationOnTheNextSweepWithoutBlockingTheBatch() {
         Notification first = confirmation();
         Notification second = confirmation();
-        when(notifications.findDue(any(), anyShort(), any())).thenReturn(List.of(first, second));
+        when(notifications.findDue(any(), any())).thenReturn(List.of(first, second));
         doThrow(new IllegalStateException("mailer exploded")).when(delivery).deliver(first.getId());
 
         dispatcher().sweep();
@@ -99,7 +99,7 @@ class NotificationDispatcherTest {
     void continuesDeliveringTheBatchWhenFailureRecordingFails() {
         Notification first = confirmation();
         Notification second = confirmation();
-        when(notifications.findDue(any(), anyShort(), any())).thenReturn(List.of(first, second));
+        when(notifications.findDue(any(), any())).thenReturn(List.of(first, second));
         doThrow(new IllegalStateException("mailer exploded")).when(delivery).deliver(first.getId());
         doThrow(new IllegalStateException("database unavailable"))
             .when(failureRecorder).recordUnexpectedFailure(first.getId());

@@ -153,18 +153,20 @@ class SendActivationInviteTest {
         assertThat(count(eventId)).isZero();
     }
 
+    // Recusa definitiva: nada e enviado, mas a idempotencia FICA gravada — sem ela o
+    // mesmo evento quebrado voltaria a cada replay desde o offset zero.
     @Test
-    void emailInvalidoNoEnvelopeNaoInterrompeConsumo() {
+    void emailInvalidoNoEnvelopeGravaIdempotenciaEDescartaSemEnviar() {
         UUID eventId = UUID.randomUUID();
 
-        assertThatNoException().isThrownBy(() ->
-            consumer.consume(AccountEventFixtures.userActivationRequested(
-                eventId, UUID.randomUUID(), "tok", "not-an-email"
-            ))
-        );
+        consumer.consume(AccountEventFixtures.userActivationRequested(
+            eventId, UUID.randomUUID(), "tok", "not-an-email"
+        ));
 
         verifyNoInteractions(mailSender);
-        assertThat(count(eventId)).isZero();
+        assertThat(count(eventId))
+            .as("descarte deliberado grava idempotencia; so o tipo fora do contrato nao grava")
+            .isEqualTo(1L);
     }
 
     @Test
@@ -183,7 +185,7 @@ class SendActivationInviteTest {
             .query(Long.class)
             .single();
 
-        assertThatNoException().isThrownBy(() -> consumer.consume("{not-json"));
+        assertThatThrownBy(() -> consumer.consume("{not-json")).isInstanceOf(RuntimeException.class);
 
         assertThat(jdbcClient.sql("SELECT count(*) FROM processed_event")
             .query(Long.class)

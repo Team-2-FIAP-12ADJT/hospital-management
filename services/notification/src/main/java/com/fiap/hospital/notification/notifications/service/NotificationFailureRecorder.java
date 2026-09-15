@@ -2,6 +2,7 @@ package com.fiap.hospital.notification.notifications.service;
 
 import com.fiap.hospital.notification.notifications.domain.Notification;
 import com.fiap.hospital.notification.notifications.domain.NotificationStatus;
+import com.fiap.hospital.notification.notifications.domain.TerminalReason;
 import com.fiap.hospital.notification.notifications.repository.NotificationRepository;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
@@ -31,7 +32,10 @@ public class NotificationFailureRecorder {
 
         notification.recordFailedAttempt();
         if (notification.getAttempts() >= properties.maxAttempts()) {
-            notification.markAbandoned();
+            // Este caminho só roda quando a entrega lançou exceção INESPERADA — a
+            // transitória tratada nunca escapa de NotificationDelivery. Por isso o
+            // motivo aqui é envenenada, não transitória esgotada.
+            notification.markAbandoned(TerminalReason.POISONED);
         }
         notifications.save(notification);
     }

@@ -3,6 +3,7 @@ package com.fiap.hospital.notification.notifications.service;
 import com.fiap.hospital.notification.notifications.domain.ContactReplica;
 import com.fiap.hospital.notification.notifications.domain.Notification;
 import com.fiap.hospital.notification.notifications.domain.NotificationStatus;
+import com.fiap.hospital.notification.notifications.domain.TerminalReason;
 import com.fiap.hospital.notification.notifications.repository.ContactReplicaRepository;
 import com.fiap.hospital.notification.notifications.repository.NotificationRepository;
 import com.fiap.hospital.notification.mail.MailFailure;
@@ -46,6 +47,22 @@ public class NotificationDelivery {
             return;
         }
 
+        // O teto e criterio de PARADA, nao so de busca: desde que o findDue parou de
+        // filtrar por tentativa, a linha acima do teto volta a ser varrida — e sem
+        // esta guarda ela ainda alcancaria o SMTP e poderia virar SENT depois de o
+        // servico ter declarado que desistiu. So existe quando `maxAttempts` baixa
+        // com fila existente.
+        if (notification.getAttempts() >= properties.maxAttempts()) {
+            notification.markAbandoned(TerminalReason.TRANSIENT_EXHAUSTED);
+            notifications.save(notification);
+            log.error(
+                "abandoning notification id={} kind={} patientId={} already over the attempt cap: {} >= {}",
+                notification.getId(), notification.getKind(), notification.getPatientId(),
+                notification.getAttempts(), properties.maxAttempts()
+            );
+            return;
+        }
+
         ContactReplica contact = contacts.findById(notification.getPatientId()).orElse(null);
         if (contact == null) {
             retryOrGiveUp(notification, "contact replica not available yet");
@@ -62,7 +79,7 @@ public class NotificationDelivery {
                 retryOrGiveUp(notification, "send failed: " + MailFailure.describe(exception));
                 return;
             }
-            notification.markFailed();
+            notification.markFailed(TerminalReason.PERMANENT_MAIL_FAILURE);
             notifications.save(notification);
             log.error(
                 "discarding notification id={} kind={} patientId={} due to permanent mail failure: {}",
@@ -86,7 +103,9 @@ public class NotificationDelivery {
         notifications.save(notification);
 
         if (notification.getAttempts() >= properties.maxAttempts()) {
-            notification.markAbandoned();
+            // Chegou aqui por transitória repetida (SMTP 4xx, rede, réplica de contato
+            // ausente): o veredito é sobre as NOSSAS tentativas, não sobre o destino.
+            notification.markAbandoned(TerminalReason.TRANSIENT_EXHAUSTED);
             notifications.save(notification);
             log.error(
                 "abandoning notification id={} kind={} patientId={} after {} attempts: {}",

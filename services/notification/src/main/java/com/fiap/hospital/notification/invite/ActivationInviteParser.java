@@ -27,11 +27,16 @@ class ActivationInviteParser {
             throw new IllegalArgumentException("envelope sem data");
         }
 
+        // O eventId sai primeiro e sozinho: o e-mail e recusa DEFINITIVA, tratada com
+        // idempotencia gravada e descarte deliberado, e sem o identificador nao
+        // haveria o que gravar — o evento voltaria a cada replay.
+        UUID eventId = canonicalUuid(requiredText(root, "eventId"), "eventId");
+
         return new ActivationInvite(
-            canonicalUuid(requiredText(root, "eventId"), "eventId"),
+            eventId,
             canonicalUuid(requiredText(data, "userId"), "userId"),
             requiredText(data, "name"),
-            requiredEmail(data),
+            requiredEmail(data, eventId),
             requiredText(data, "role"),
             requiredText(data, "activationToken"),
             Instant.parse(requiredText(data, "expiresAt"))
@@ -46,17 +51,29 @@ class ActivationInviteParser {
         return parsed;
     }
 
-    private static String requiredEmail(JsonNode data) {
-        String email = requiredText(data, "email");
+    // CR, LF e vírgula são recusa de injeção de cabeçalho SMTP, não capricho de
+    // formato: `vitima@x.com\r\nBcc: atacante@exemplo` viraria um segundo destinatário.
+    private static String requiredEmail(JsonNode data, UUID eventId) {
+        // Ausente ou em branco tambem e recusa DEFINITIVA, nao envelope malformado:
+        // `requiredText` lancaria IllegalArgumentException pura, o registro iria para
+        // a DLT e levaria o token de ativacao em claro junto. O campo esta no MESMO
+        // payload do token, entao todo defeito dele termina em descarte deliberado.
+        JsonNode value = data.get("email");
+        if (value == null || value.isNull()
+            || value.asString() == null || value.asString().isBlank()) {
+            throw new RejectedActivationInviteException(eventId, "email");
+        }
+
+        String email = value.asString();
         if (email.indexOf('\r') >= 0
             || email.indexOf('\n') >= 0
             || email.indexOf(',') >= 0) {
-            throw new IllegalArgumentException("campo obrigatório inválido: email");
+            throw new RejectedActivationInviteException(eventId, "email");
         }
         try {
             new InternetAddress(email, true).validate();
         } catch (AddressException ex) {
-            throw new IllegalArgumentException("campo obrigatório inválido: email");
+            throw new RejectedActivationInviteException(eventId, "email");
         }
         return email;
     }

@@ -17,6 +17,7 @@ import ch.qos.logback.core.read.ListAppender;
 import com.fiap.hospital.notification.notifications.domain.ContactReplica;
 import com.fiap.hospital.notification.notifications.domain.Notification;
 import com.fiap.hospital.notification.notifications.domain.NotificationStatus;
+import com.fiap.hospital.notification.notifications.domain.TerminalReason;
 import com.fiap.hospital.notification.notifications.repository.ContactReplicaRepository;
 import com.fiap.hospital.notification.notifications.repository.NotificationRepository;
 import java.lang.reflect.Field;
@@ -167,6 +168,69 @@ class NotificationDeliveryTest {
             .isEqualTo(MAX_ATTEMPTS);
         assertThat(notification.getStatus())
             .isEqualTo(NotificationStatus.ABANDONED);
+    }
+
+    // O estado terminal diz de QUEM e o veredito; o motivo diz QUAL foi. Sem ele,
+    // `attempts` no teto nao separa transitoria esgotada de envenenada, e a causa
+    // so existiria no log.
+    @Test
+    void permanentFailureRecordsTheDestinationVerdictAsTheReason() throws Exception {
+        Notification notification = confirmation();
+        when(notifications.findById(notification.getId())).thenReturn(Optional.of(notification));
+        when(contacts.findById(notification.getPatientId()))
+            .thenReturn(Optional.of(contactWith(CONTACT_EMAIL)));
+        doThrow(new MailSendException("550 rejected")).when(mailer).send(any(), anyString());
+
+        delivery().deliver(notification.getId());
+
+        assertThat(notification.getStatus()).isEqualTo(NotificationStatus.FAILED);
+        assertThat(notification.getTerminalReason())
+            .isEqualTo(TerminalReason.PERMANENT_MAIL_FAILURE);
+    }
+
+    @Test
+    void exhaustedTransientFailureRecordsOurOwnVerdictAsTheReason() {
+        Notification notification = confirmation();
+        notification.recordFailedAttempt();
+        notification.recordFailedAttempt();
+        when(notifications.findById(notification.getId())).thenReturn(Optional.of(notification));
+        when(contacts.findById(notification.getPatientId())).thenReturn(Optional.empty());
+
+        delivery().deliver(notification.getId());
+
+        assertThat(notification.getStatus()).isEqualTo(NotificationStatus.ABANDONED);
+        assertThat(notification.getTerminalReason())
+            .as("transitoria esgotada, nao envenenada — o caminho envenenado e o do recorder")
+            .isEqualTo(TerminalReason.TRANSIENT_EXHAUSTED);
+    }
+
+    // Linha acima do teto so existe quando `maxAttempts` baixa com fila existente.
+    // Antes ela ficava invisivel para o findDue e encalhava em PENDING para sempre;
+    // agora a varredura a alcanca e ela sai do limbo na primeira passada.
+    // ⚠ O CONTATO TEM DE EXISTIR aqui: com contato ausente o caminho antigo tambem
+    // terminaliza sem tocar no mailer, e o teste passaria com a guarda de teto
+    // removida. Com contato valido, so a guarda impede o envio.
+    @Test
+    void aNotificationAlreadyOverTheCapIsTerminalisedInsteadOfStayingPending() throws Exception {
+        Notification notification = confirmation();
+        notification.recordFailedAttempt();
+        notification.recordFailedAttempt();
+        notification.recordFailedAttempt();
+        notification.recordFailedAttempt();
+        short attemptsBefore = notification.getAttempts();
+        when(notifications.findById(notification.getId())).thenReturn(Optional.of(notification));
+
+        delivery().deliver(notification.getId());
+
+        verifyNoInteractions(mailer, contacts);
+        assertThat(notification.getAttempts())
+            .as("acima do teto nao gasta tentativa: e parada, nao nova tentativa")
+            .isEqualTo(attemptsBefore);
+        assertThat(notification.getAttempts()).isGreaterThan(MAX_ATTEMPTS);
+        assertThat(notification.getStatus())
+            .as("acima do teto sai de PENDING em vez de encalhar")
+            .isEqualTo(NotificationStatus.ABANDONED);
+        assertThat(notification.getTerminalReason()).isEqualTo(TerminalReason.TRANSIENT_EXHAUSTED);
     }
 
     @Test

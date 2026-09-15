@@ -18,16 +18,19 @@ public interface NotificationRepository extends JpaRepository<Notification, UUID
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     Optional<Notification> findById(UUID id);
 
+    // Sem filtro por `attempts`: quem decide elegibilidade é o ESTADO. A linha que
+    // esgotou o teto sai de PENDING na mesma varredura que a esgotou, então filtrar
+    // por tentativa aqui é redundante — e perigoso: baixar `maxAttempts` com fila
+    // existente deixava linha em PENDING acima do novo teto, invisível para esta
+    // consulta, sem estado terminal e sem nunca mais ser varrida.
     @Query("""
         SELECT n FROM Notification n
          WHERE n.status = com.fiap.hospital.notification.notifications.domain.NotificationStatus.PENDING
            AND n.fireAt <= :now
-           AND n.attempts < :maxAttempts
          ORDER BY n.fireAt ASC
         """)
     List<Notification> findDue(
         @Param("now") Instant now,
-        @Param("maxAttempts") short maxAttempts,
         Limit limit
     );
 
