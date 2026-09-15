@@ -19,6 +19,42 @@ public final class MailFailure {
 
     private MailFailure() {}
 
+    /**
+     * Descreve a falha para log sem repetir a mensagem do servidor: ela carrega o
+     * endereço do destinatário numa rejeição típica ({@code 550 <email> rejected}).
+     * Sobra o que serve para diagnóstico — a causa mais específica e, quando existe,
+     * o código de resposta SMTP, que é o que separa 4xx de 5xx.
+     */
+    public static String describe(MailException ex) {
+        Throwable specific = ex;
+        for (Throwable cause = ex; cause != null; cause = cause.getCause()) {
+            specific = cause;
+        }
+        String replyCode = firstReplyCode(ex);
+        String kind = specific.getClass().getName();
+        return replyCode == null ? kind : kind + " smtpReply=" + replyCode;
+    }
+
+    private static String firstReplyCode(MailException ex) {
+        for (Throwable cause = ex; cause != null; cause = cause.getCause()) {
+            Matcher matcher = SMTP_REPLY_CODE.matcher(cause.getMessage() == null ? "" : cause.getMessage());
+            if (matcher.find()) {
+                return matcher.group(1);
+            }
+        }
+        if (ex instanceof MailSendException send) {
+            for (Exception nested : send.getMessageExceptions()) {
+                for (Throwable cause = nested; cause != null; cause = cause.getCause()) {
+                    Matcher matcher = SMTP_REPLY_CODE.matcher(cause.getMessage() == null ? "" : cause.getMessage());
+                    if (matcher.find()) {
+                        return matcher.group(1);
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
     public static boolean isTransient(MailException ex) {
         if (ex instanceof MailParseException || ex instanceof MailAuthenticationException) {
             return false;

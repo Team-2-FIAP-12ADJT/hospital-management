@@ -26,15 +26,25 @@ public class PatientContactConsumer {
 
     @KafkaListener(topics = "hospital.person", groupId = "notification-contact")
     public void receive(ConsumerRecord<String, String> record) {
-        consume(record.value());
+        consume(record.value(), record.partition(), record.offset());
     }
 
     void consume(String envelopeJson) {
+        consume(envelopeJson, -1, -1L);
+    }
+
+    private void consume(String envelopeJson, int partition, long offset) {
         PatientContact contact;
         try {
             contact = parser.parse(envelopeJson);
         } catch (UnsupportedEventException exception) {
-            log.info("tipo fora da réplica de contato, ignorado: {}", exception.getMessage());
+            // O eventType vem do envelope e não é validado contra lista nenhuma:
+            // é string arbitrária de quem publica, então não vai para o log.
+            log.info(
+                "evento fora da réplica de contato, ignorado: partition={} offset={}",
+                partition,
+                offset
+            );
             return;
         }
         maintainContactReplica.apply(contact);

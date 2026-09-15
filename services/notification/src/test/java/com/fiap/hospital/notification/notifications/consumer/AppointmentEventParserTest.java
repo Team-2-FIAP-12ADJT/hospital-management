@@ -74,10 +74,14 @@ class AppointmentEventParserTest {
             UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID()
         );
 
+        // eventType nao entra na mensagem da excecao (vazamento de log
+        // corrigido), mas fica no campo/acessor: a asserção prova qual tipo
+        // foi recusado, não só "algo fora de escopo".
         assertThatThrownBy(() -> parser.parse(completed))
             .as("o lembrete já saiu antes da consulta acontecer")
             .isInstanceOf(UnsupportedEventException.class)
-            .hasMessage("AppointmentCompleted");
+            .extracting(ex -> ((UnsupportedEventException) ex).eventType())
+            .isEqualTo("AppointmentCompleted");
     }
 
     @Test
@@ -88,7 +92,8 @@ class AppointmentEventParserTest {
 
         assertThatThrownBy(() -> parser.parse(unknown))
             .isInstanceOf(UnsupportedEventException.class)
-            .hasMessage("AppointmentVaporized");
+            .extracting(ex -> ((UnsupportedEventException) ex).eventType())
+            .isEqualTo("AppointmentVaporized");
     }
 
     @Test

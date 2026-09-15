@@ -40,9 +40,11 @@ public class SmokeConsumer {
         try {
             envelope = objectMapper.readTree(record.value());
         } catch (RuntimeException e) {
+            // Só a classificação: e.getMessage() do Jackson pode repetir o trecho
+            // recusado do payload, e o payload não pode ir para o log.
             log.error(
-                "discarding unparseable message on hospital.person, partition={} offset={}: {}",
-                record.partition(), record.offset(), e.getMessage()
+                "discarding unparseable message on hospital.person, partition={} offset={} cause={}",
+                record.partition(), record.offset(), e.getClass().getName()
             );
             return;
         }
@@ -52,8 +54,8 @@ public class SmokeConsumer {
         if (eventId.isEmpty() || eventType.isEmpty()) {
             log.warn(
                 "discarding message missing eventId/eventType on hospital.person, "
-                    + "partition={} offset={} value={}",
-                record.partition(), record.offset(), record.value()
+                    + "partition={} offset={}",
+                record.partition(), record.offset()
             );
             return;
         }
@@ -67,14 +69,16 @@ public class SmokeConsumer {
         } catch (IllegalArgumentException e) {
             log.warn(
                 "discarding message with invalid eventId on hospital.person, "
-                    + "partition={} offset={} value={}",
-                record.partition(), record.offset(), record.value()
+                    + "partition={} offset={}",
+                record.partition(), record.offset()
             );
             return;
         }
 
+        // O eventId é UUID gerado por nós; o eventType vem do envelope e é string
+        // arbitrária de quem publica, então fica fora do log como nos demais caminhos.
         idempotencyService.process(CONSUMER, parsedEventId, () ->
-            log.info("received event eventId={} eventType={}", eventId, eventType)
+            log.info("received event eventId={}", eventId)
         );
     }
 }

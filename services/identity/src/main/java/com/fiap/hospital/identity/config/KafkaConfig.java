@@ -1,11 +1,10 @@
-package com.fiap.hospital.history.config;
+package com.fiap.hospital.identity.config;
 
 import org.apache.kafka.clients.admin.NewTopic;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.common.TopicPartition;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.NestedExceptionUtils;
@@ -22,18 +21,19 @@ import tools.jackson.core.JacksonException;
 import java.time.format.DateTimeParseException;
 
 /**
- * Retry/DLT do consumidor de projeção. Mesmo contrato do
- * {@code KafkaErrorHandlingConfig} do notification: sufixo {@code .DLT}, resolver
- * explícito e o tópico declarado como bean.
+ * Retry/DLT do consumidor de provisionamento. Mesmo contrato do history:
+ * sufixo {@code .DLT}, resolver explícito e o tópico declarado como bean.
  */
 @Configuration
 public class KafkaConfig {
 
     private static final Logger log = LoggerFactory.getLogger(KafkaConfig.class);
 
+    private static final String PERSON_TOPIC = "hospital.person";
+
     // O padrão do spring-kafka 4.x é "-dlt". O contrato deste repositório é ".DLT",
-    // cravado no resolver do notification — por isso o resolver aqui é explícito:
-    // herdar o padrão manda o registro para um tópico que ninguém declara.
+    // por isso o resolver aqui é explícito: herdar o padrão manda o registro para
+    // um tópico que ninguém declara.
     private static final String DEAD_LETTER_SUFFIX = ".DLT";
 
     // Uma entrega mais duas tentativas: falha transitória de banco se recupera,
@@ -44,10 +44,8 @@ public class KafkaConfig {
     // O broker roda com auto-create desligado; sem este bean a DLT não existe e a
     // publicação de recuperação falha em silêncio, reentregando para sempre.
     @Bean
-    NewTopic appointmentEventDeadLetterTopic(
-            @Value("${history.kafka.appointment-topic}") String appointmentTopic
-    ) {
-        return TopicBuilder.name(appointmentTopic + DEAD_LETTER_SUFFIX)
+    NewTopic personEventDeadLetterTopic() {
+        return TopicBuilder.name(PERSON_TOPIC + DEAD_LETTER_SUFFIX)
                 .partitions(1)
                 .replicas((short) 1)
                 .build();
@@ -65,7 +63,7 @@ public class KafkaConfig {
         DefaultErrorHandler handler = new DefaultErrorHandler(
                 (record, exception) -> {
                     // Só a classificação: a mensagem da exceção carrega o valor recusado
-                    // (UUID e Instant repetem a entrada), e o payload não pode ir para o log.
+                    // (CPF e UUID repetem a entrada), e o payload não pode ir para o log.
                     log.error(
                             "dead-lettering record from {}, partition={} offset={} cause={}",
                             record.topic(),
@@ -79,9 +77,6 @@ public class KafkaConfig {
         );
 
         // Envelope inválido é determinístico: repetir só adia o dead-letter.
-        // MalformedAppointmentEventException estende IllegalArgumentException e cobre
-        // UUID e instante inválidos; DateTimeParseException fica como rede de segurança
-        // para qualquer caminho de data que não passe pelo parser.
         handler.addNotRetryableExceptions(
                 IllegalArgumentException.class,
                 DateTimeParseException.class,
@@ -94,8 +89,7 @@ public class KafkaConfig {
     }
 
     // Sem este bean, o LoggingProducerListener default do Boot (includeContents=true)
-    // grava chave e payload em ERROR quando a publicação na DLT falha — o mesmo dado
-    // sensível que o error handler acima evita logar reaparece por outra porta.
+    // grava CPF, nome, email e telefone em ERROR quando a publicação na DLT falha.
     @Bean
     public ProducerListener<Object, Object> producerListener() {
         LoggingProducerListener<Object, Object> listener = new LoggingProducerListener<>();

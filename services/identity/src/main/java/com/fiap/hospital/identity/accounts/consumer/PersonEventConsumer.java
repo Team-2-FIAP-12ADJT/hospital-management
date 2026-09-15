@@ -40,12 +40,12 @@ public class PersonEventConsumer {
         try {
             registration = parser.parse(envelopeJson);
         } catch (UnsupportedPersonEventException ex) {
-            log.info("tipo fora do provisionamento, ignorado: {}", ex.getMessage());
-            return;
-        } catch (RuntimeException ex) {
-            log.error(
-                "discarding unparseable message on hospital.person, partition={} offset={}: {}",
-                partition, offset, ex.getMessage()
+            // O eventType vem do envelope e não é validado contra lista nenhuma:
+            // é string arbitrária de quem publica, então não vai para o log.
+            log.info(
+                "evento de tipo não provisionado, ignorado: partition={} offset={}",
+                partition,
+                offset
             );
             return;
         }

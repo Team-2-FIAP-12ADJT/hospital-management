@@ -8,9 +8,13 @@ import org.apache.kafka.clients.admin.NewTopic;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.listener.DeadLetterPublishingRecoverer;
+import org.springframework.kafka.support.ProducerListener;
 import org.springframework.util.backoff.BackOff;
 import org.springframework.util.backoff.BackOffExecution;
 
@@ -18,6 +22,7 @@ import org.springframework.util.backoff.BackOffExecution;
  * Verifies the DLT/backoff wiring shared by every @KafkaListener in this module
  * through observable behavior only: no reflection into Spring Kafka internals.
  */
+@ExtendWith(OutputCaptureExtension.class)
 class KafkaErrorHandlingConfigTest {
 
     @Test
@@ -94,5 +99,19 @@ class KafkaErrorHandlingConfigTest {
         assertThat(execution.nextBackOff()).isEqualTo(8000L);
         assertThat(execution.nextBackOff()).isEqualTo(16000L);
         assertThat(execution.nextBackOff()).isEqualTo(BackOffExecution.STOP);
+    }
+
+    // LoggingProducerListener não expõe getter para includeContents (verificado
+    // via javap no jar do spring-kafka): a prova é comportamental.
+    @Test
+    void producerListenerOmitsRecordContentsWhenPublishFails(CapturedOutput output) {
+        String marker = "cpf-52998224726-marker";
+        ProducerListener<Object, Object> listener = new KafkaErrorHandlingConfig().producerListener();
+
+        ProducerRecord<Object, Object> record =
+            new ProducerRecord<>("hospital.person.DLT", 0, "key-" + marker, "value-" + marker);
+        listener.onError(record, null, new IllegalStateException("broker unavailable"));
+
+        assertThat(output.getOut()).doesNotContain(marker);
     }
 }
