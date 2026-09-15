@@ -18,6 +18,12 @@ import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.locks.LockSupport;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.CompletableFuture;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -32,6 +38,7 @@ import org.springframework.context.annotation.Primary;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.mail.MailSender;
 import org.springframework.mail.SimpleMailMessage;
+import org.springframework.jdbc.core.simple.JdbcClient;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
@@ -69,6 +76,9 @@ class AppointmentNotificationsIntegrationTest {
 
     @Autowired
     private ContactReplicaRepository contacts;
+
+    @Autowired
+    private JdbcClient jdbcClient;
 
     @Autowired
     private RecordingMailSender mailSender;
@@ -173,6 +183,39 @@ class AppointmentNotificationsIntegrationTest {
 
         assertThat(mailSender.sent()).hasSize(1);
         assertThat(statusOf(NotificationKind.REMINDER)).isEqualTo(NotificationStatus.SENT);
+    }
+
+    @Test
+    void cancellationWaitsForConcurrentDeliveryBeforeReadingReminder() throws Exception {
+        UUID patientId = UUID.randomUUID();
+        UUID appointmentId = UUID.randomUUID();
+        registerContact(patientId, "marcos@exemplo.com");
+        scheduleAppointment(appointmentId, patientId);
+        clock.set(EventFixtures.SCHEDULED_AT.minus(Duration.ofHours(24)));
+        UUID reminderId = byKind(NotificationKind.REMINDER).getId();
+
+        mailSender.pauseNextSend();
+        try (ExecutorService executor = Executors.newFixedThreadPool(2)) {
+            Future<?> deliveryFuture = executor.submit(() -> delivery.deliver(reminderId));
+            mailSender.awaitSendStarted();
+
+            Future<?> cancellationFuture = executor.submit(() -> appointmentConsumer.receive(
+                record("hospital.appointment",
+                    EventFixtures.appointmentCancelled(UUID.randomUUID(), appointmentId, patientId))
+            ));
+            awaitCancellationBlockedOnNotificationLock();
+
+            mailSender.releaseSend();
+            deliveryFuture.get(5, TimeUnit.SECONDS);
+            cancellationFuture.get(5, TimeUnit.SECONDS);
+        }
+
+        Notification reminder = notifications.findAll().stream()
+            .filter(notification -> notification.getId().equals(reminderId))
+            .findFirst()
+            .orElseThrow();
+        assertThat(reminder.getStatus()).isEqualTo(NotificationStatus.SENT);
+        assertThat(reminder.getSentAt()).isNotNull();
     }
 
     @Test
@@ -324,6 +367,120 @@ class AppointmentNotificationsIntegrationTest {
     }
 
     @Test
+    void reschedulingSwapsTheReminderWithoutTrippingTheUniqueIndex() {
+        UUID patientId = UUID.randomUUID();
+        UUID appointmentId = UUID.randomUUID();
+        registerContact(patientId, "marcos@exemplo.com");
+        scheduleAppointment(appointmentId, patientId);
+        Instant newSlot = EventFixtures.SCHEDULED_AT.plus(Duration.ofDays(2));
+
+        appointmentConsumer.receive(record("hospital.appointment", EventFixtures
+            .appointmentRescheduled(
+                UUID.randomUUID(), appointmentId, patientId,
+                EventFixtures.SCHEDULED_AT, newSlot
+            )));
+
+        var reminders = notifications.findAll().stream()
+            .filter(n -> n.getKind() == NotificationKind.REMINDER)
+            .toList();
+        assertThat(reminders)
+            .as("um lembrete cancelado e um pendente, nunca dois pendentes")
+            .hasSize(2);
+        assertThat(reminders).anySatisfy(reminder -> {
+            assertThat(reminder.getStatus()).isEqualTo(NotificationStatus.CANCELLED);
+            assertThat(reminder.getScheduledAt()).isEqualTo(EventFixtures.SCHEDULED_AT);
+        });
+        assertThat(reminders).anySatisfy(reminder -> {
+            assertThat(reminder.getStatus()).isEqualTo(NotificationStatus.PENDING);
+            assertThat(reminder.getFireAt()).isEqualTo(newSlot.minus(Duration.ofHours(24)));
+        });
+    }
+
+    @Test
+    void theSwappedReminderFiresForTheNewTimeAndNotTheOld() {
+        UUID patientId = UUID.randomUUID();
+        UUID appointmentId = UUID.randomUUID();
+        registerContact(patientId, "marcos@exemplo.com");
+        scheduleAppointment(appointmentId, patientId);
+        Instant newSlot = EventFixtures.SCHEDULED_AT.plus(Duration.ofDays(2));
+        appointmentConsumer.receive(record("hospital.appointment", EventFixtures
+            .appointmentRescheduled(
+                UUID.randomUUID(), appointmentId, patientId,
+                EventFixtures.SCHEDULED_AT, newSlot
+            )));
+        mailSender.sent().clear();
+
+        clock.set(EventFixtures.SCHEDULED_AT.minus(Duration.ofHours(24)));
+        dispatcher.sweep();
+
+        assertThat(mailSender.sent())
+            .as("no horário do lembrete antigo nada dispara — ele foi cancelado")
+            .noneSatisfy(message -> assertThat(message.getSubject())
+                .isEqualTo("Lembrete: sua consulta está próxima"));
+
+        clock.set(newSlot.minus(Duration.ofHours(24)));
+        dispatcher.sweep();
+
+        assertThat(mailSender.sent())
+            .anySatisfy(message -> assertThat(message.getSubject())
+                .isEqualTo("Lembrete: sua consulta está próxima"));
+    }
+
+    @Test
+    void cancellingAnAppointmentCancelsThePendingReminder() {
+        UUID patientId = UUID.randomUUID();
+        UUID appointmentId = UUID.randomUUID();
+        registerContact(patientId, "marcos@exemplo.com");
+        scheduleAppointment(appointmentId, patientId);
+
+        appointmentConsumer.receive(record("hospital.appointment",
+            EventFixtures.appointmentCancelled(UUID.randomUUID(), appointmentId, patientId)));
+
+        assertThat(statusOf(NotificationKind.REMINDER)).isEqualTo(NotificationStatus.CANCELLED);
+
+        mailSender.sent().clear();
+        clock.set(EventFixtures.SCHEDULED_AT.minus(Duration.ofHours(24)));
+        dispatcher.sweep();
+
+        assertThat(mailSender.sent())
+            .as("lembrete cancelado não é varrido; a confirmação pendente sai normalmente")
+            .noneSatisfy(message -> assertThat(message.getSubject())
+                .isEqualTo("Lembrete: sua consulta está próxima"));
+    }
+
+    @Test
+    void cancellingAfterTheReminderWentOutIsSilent() {
+        UUID patientId = UUID.randomUUID();
+        UUID appointmentId = UUID.randomUUID();
+        registerContact(patientId, "marcos@exemplo.com");
+        scheduleAppointment(appointmentId, patientId);
+        clock.set(EventFixtures.SCHEDULED_AT.minus(Duration.ofHours(24)));
+        dispatcher.sweep();
+        assertThat(statusOf(NotificationKind.REMINDER)).isEqualTo(NotificationStatus.SENT);
+
+        appointmentConsumer.receive(record("hospital.appointment",
+            EventFixtures.appointmentCancelled(UUID.randomUUID(), appointmentId, patientId)));
+
+        assertThat(statusOf(NotificationKind.REMINDER))
+            .as("lembrete já enviado não tem o que cancelar, e isso não é erro")
+            .isEqualTo(NotificationStatus.SENT);
+    }
+
+    @Test
+    void appointmentCompletedIsNotConsumedHere() {
+        UUID patientId = UUID.randomUUID();
+        UUID appointmentId = UUID.randomUUID();
+        registerContact(patientId, "marcos@exemplo.com");
+
+        appointmentConsumer.receive(record("hospital.appointment",
+            EventFixtures.appointmentCompleted(UUID.randomUUID(), appointmentId, patientId)));
+
+        assertThat(notifications.findAll())
+            .as("AppointmentCompleted é só do history")
+            .isEmpty();
+    }
+
+    @Test
     void refusesASecondPendingReminderForTheSameAppointment() {
         UUID appointmentId = UUID.randomUUID();
         UUID patientId = UUID.randomUUID();
@@ -380,6 +537,28 @@ class AppointmentNotificationsIntegrationTest {
             .orElseThrow(() -> new AssertionError("nenhuma notificação do tipo " + kind));
     }
 
+    private void awaitCancellationBlockedOnNotificationLock() {
+        Instant deadline = Instant.now().plusSeconds(5);
+        String query = """
+            SELECT count(*)
+              FROM pg_stat_activity
+             WHERE wait_event_type = 'Lock'
+               AND state = 'active'
+               AND query ILIKE '%from notification%'
+               AND query ILIKE '%for no key update%'
+            """;
+
+        while (Instant.now().isBefore(deadline)) {
+            Integer blockedQueries = jdbcClient.sql(query).query(Integer.class).single();
+            if (blockedQueries > 0) {
+                return;
+            }
+            LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(10));
+        }
+
+        throw new AssertionError("cancelamento não ficou bloqueado no lock da notificação");
+    }
+
     @TestConfiguration
     static class Configuration {
 
@@ -400,6 +579,8 @@ class AppointmentNotificationsIntegrationTest {
 
         private final List<SimpleMailMessage> sent = new CopyOnWriteArrayList<>();
         private final Set<String> unexpectedFailureRecipients = new java.util.concurrent.CopyOnWriteArraySet<>();
+        private volatile CountDownLatch sendStarted;
+        private volatile CountDownLatch releaseSend;
 
         List<SimpleMailMessage> sent() {
             return sent;
@@ -413,8 +594,37 @@ class AppointmentNotificationsIntegrationTest {
             unexpectedFailureRecipients.clear();
         }
 
+        void pauseNextSend() {
+            sendStarted = new CountDownLatch(1);
+            releaseSend = new CountDownLatch(1);
+        }
+
+        void awaitSendStarted() throws InterruptedException {
+            assertThat(sendStarted.await(5, TimeUnit.SECONDS)).isTrue();
+        }
+
+        void releaseSend() {
+            releaseSend.countDown();
+        }
+
         @Override
         public void send(SimpleMailMessage message) {
+            CountDownLatch started = sendStarted;
+            CountDownLatch release = releaseSend;
+            if (started != null && release != null) {
+                started.countDown();
+                try {
+                    if (!release.await(5, TimeUnit.SECONDS)) {
+                        throw new AssertionError("mail send was not released");
+                    }
+                } catch (InterruptedException exception) {
+                    Thread.currentThread().interrupt();
+                    throw new AssertionError("mail send was interrupted", exception);
+                } finally {
+                    sendStarted = null;
+                    releaseSend = null;
+                }
+            }
             if (message.getTo() != null
                 && unexpectedFailureRecipients.stream()
                     .anyMatch(java.util.Arrays.asList(message.getTo())::contains)) {
