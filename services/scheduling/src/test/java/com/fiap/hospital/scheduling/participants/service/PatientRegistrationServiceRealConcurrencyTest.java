@@ -89,7 +89,10 @@ class PatientRegistrationServiceRealConcurrencyTest {
     @Test
     void concurrent_registration_for_same_tax_identifier_produces_one_success_and_one_conflict()
         throws InterruptedException, ExecutionException {
-        String taxIdentifier = "39053344705";
+        // Nao pode ser 39053344705: esse CPF e o do medico semeado pela V1, e com o
+        // cross-check de papel as duas threads passariam a sair por 409 antes mesmo da
+        // corrida, sem nunca chegar ao insert que este teste quer exercitar.
+        String taxIdentifier = "11144477735";
         try (ExecutorService executor = Executors.newFixedThreadPool(2)) {
             List<Future<Boolean>> futures = new ArrayList<>();
 

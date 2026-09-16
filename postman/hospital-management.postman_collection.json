@@ -1,302 +1,2017 @@
 {
-  "info": {
-    "_postman_id": "bca356f3-b01c-48fb-918b-351ab01857fe",
-    "name": "hospital-management",
-    "description": "Login (ADR-0013) e cadastro de médico (ADR-0015). Aponta para o gateway, porta única (ADR-0014). Usa a conta semeada pela V1__initial_schema_and_seeded_accounts.sql (Dra. Helena Prado, papel DOCTOR, CPF 39053344705 / medico@123). As três contas semeadas estão documentadas no README.",
-    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-    "_exporter_id": "14270995",
-    "_collection_link": "https://go.postman.co/collection/14270995-bca356f3-b01c-48fb-918b-351ab01857fe?source=collection_link"
+  "_": {
+    "postman_id": "40e9db6b-d8ee-4727-a53c-7e626bd69094"
   },
   "item": [
     {
-      "name": "Autenticação",
+      "id": "b8dbe8d5-6c90-467f-bbca-88d4ce528da4",
+      "name": "00 — Saúde da stack",
       "item": [
         {
-          "name": "Login (conta de teste)",
+          "id": "5bcc590b-037f-49cd-979c-b24cd5860d8a",
+          "name": "Saúde agregada",
+          "request": {
+            "description": {
+              "content": "Rota publica que consolida o actuator dos quatro servicos (ADR-0014). Serve de pre-voo: se algum servico nao responde aqui, o resto da collection falha por causa dele e nao por defeito de regra.",
+              "type": "text/plain"
+            },
+            "url": {
+              "path": [
+                "health",
+                "system"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "method": "GET",
+            "auth": {
+              "type": "noauth",
+              "noauth": []
+            }
+          },
+          "response": [],
           "event": [
             {
               "listen": "test",
               "script": {
+                "id": "96c10675-13c2-4d20-bffc-e202da2e9da9",
                 "type": "text/javascript",
                 "exec": [
                   "pm.test(\"200 OK\", () => pm.response.to.have.status(200));",
-                  "",
                   "const body = pm.response.json();",
-                  "pm.test(\"accessToken presente\", () => pm.expect(body.accessToken).to.be.a(\"string\").and.not.empty);",
-                  "",
-                  "pm.collectionVariables.set(\"accessToken\", body.accessToken);"
+                  "const texto = JSON.stringify(body);",
+                  "pm.test(\"os quatro servicos aparecem\", () => {",
+                  "  [\"identity\", \"scheduling\", \"history\", \"notification\"].forEach(s =>",
+                  "    pm.expect(texto).to.include(s));",
+                  "});"
                 ]
               }
             }
-          ],
+          ]
+        }
+      ],
+      "event": []
+    },
+    {
+      "id": "a3304fe9-ec0a-41f0-af02-0b0fe2a6ca70",
+      "name": "01 — Autenticação",
+      "item": [
+        {
+          "id": "c4a9ae5c-a9c3-42ef-90f0-b449c3e804a8",
+          "name": "Login — médico",
           "request": {
-            "auth": {
-              "type": "basic",
-              "basic": [
-                {
-                  "key": "username",
-                  "value": "{{testDoctorCpf}}",
-                  "type": "string"
-                },
-                {
-                  "key": "password",
-                  "value": "{{testDoctorPassword}}",
-                  "type": "string"
-                }
-              ]
+            "description": {
+              "content": "Basic com CPF como identificador de login, devolve JWT RS256 (ADR-0013). Guarda o token para as pastas seguintes.",
+              "type": "text/plain"
             },
-            "method": "POST",
+            "url": {
+              "path": [
+                "auth",
+                "login"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [],
+              "variable": []
+            },
             "header": [
               {
                 "key": "Accept",
                 "value": "application/json"
               }
             ],
-            "url": {
-              "raw": "{{baseUrl}}/auth/login",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "auth",
-                "login"
+            "method": "POST",
+            "auth": {
+              "type": "basic",
+              "basic": [
+                {
+                  "type": "string",
+                  "value": "{{doctorCpf}}",
+                  "key": "username"
+                },
+                {
+                  "type": "string",
+                  "value": "{{doctorPassword}}",
+                  "key": "password"
+                }
               ]
-            },
-            "description": "HTTP Basic com CPF como identificador de login (ADR-0013). Devolve o JWT RS256 usado nas rotas protegidas."
+            }
           },
-          "response": []
-        }
-      ]
-    },
-    {
-      "name": "Doctors",
-      "item": [
-        {
-          "name": "Cadastrar médico",
+          "response": [],
           "event": [
             {
               "listen": "test",
               "script": {
+                "id": "7f1bcb95-937d-4f1d-8bfa-5da0eec69546",
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"201 Created\", () => pm.response.to.have.status(201));",
-                  "pm.test(\"id presente\", () => pm.expect(pm.response.json().id).to.be.a(\"string\").and.not.empty);"
+                  "pm.test(\"200 OK\", () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test(\"accessToken presente\", () => pm.expect(body.accessToken).to.be.a(\"string\").and.not.empty);",
+                  "pm.collectionVariables.set(\"doctorToken\", body.accessToken);",
+                  "",
+                  "const [cabecalho, payload] = body.accessToken.split(\".\").slice(0, 2)",
+                  "  .map(p => JSON.parse(atob(p.replace(/-/g, \"+\").replace(/_/g, \"/\"))));",
+                  "",
+                  "pm.test(\"assinado em RS256 e com kid\", () => {",
+                  "  pm.expect(cabecalho.alg).to.eql(\"RS256\");",
+                  "  pm.expect(cabecalho.kid).to.be.a(\"string\").and.not.empty;",
+                  "});",
+                  "",
+                  "// O token atravessa o sistema inteiro e fica em log de proxy e em",
+                  "// historico de cliente HTTP: PII dentro dele vaza em todos esses pontos.",
+                  "pm.test(\"payload nao carrega CPF, nome nem e-mail\", () => {",
+                  "  const texto = JSON.stringify(payload);",
+                  "  pm.expect(texto).to.not.include(pm.environment.get(\"doctorCpf\"));",
+                  "  pm.expect(texto).to.not.match(/@/);",
+                  "  pm.expect(texto.toLowerCase()).to.not.include(\"helena\");",
+                  "});",
+                  "pm.test(\"sub presente\", () => pm.expect(payload.sub).to.be.a(\"string\").and.not.empty);"
                 ]
               }
             }
-          ],
+          ]
+        },
+        {
+          "id": "110d928b-2987-475a-ae2a-30243dcb1dc7",
+          "name": "Login — enfermeiro",
           "request": {
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{accessToken}}",
-                  "type": "string"
-                }
-              ]
+            "description": {
+              "content": "O enfermeiro e quem agenda no roteiro do enunciado (ADR-0007).",
+              "type": "text/plain"
+            },
+            "url": {
+              "path": [
+                "auth",
+                "login"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [],
+              "variable": []
             },
             "method": "POST",
+            "auth": {
+              "type": "basic",
+              "basic": [
+                {
+                  "type": "string",
+                  "value": "{{nurseCpf}}",
+                  "key": "username"
+                },
+                {
+                  "type": "string",
+                  "value": "{{nursePassword}}",
+                  "key": "password"
+                }
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "id": "bb461beb-2e3b-4697-98cf-e9d8df267f94",
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200 OK\", () => pm.response.to.have.status(200));",
+                  "pm.collectionVariables.set(\"nurseToken\", pm.response.json().accessToken);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "a8cb1dca-eb47-4b85-b3b0-a2f596e94c48",
+          "name": "Login — paciente semeado",
+          "request": {
+            "description": {
+              "content": "Conta semeada e ja ativa (ADR-0016). E o paciente A da prova de isolamento da pasta 07.",
+              "type": "text/plain"
+            },
+            "url": {
+              "path": [
+                "auth",
+                "login"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "method": "POST",
+            "auth": {
+              "type": "basic",
+              "basic": [
+                {
+                  "type": "string",
+                  "value": "{{patientCpf}}",
+                  "key": "username"
+                },
+                {
+                  "type": "string",
+                  "value": "{{patientPassword}}",
+                  "key": "password"
+                }
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "id": "1c700d4a-bb49-4155-b7d0-06aa560f6bd5",
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200 OK\", () => pm.response.to.have.status(200));",
+                  "pm.collectionVariables.set(\"patientAToken\", pm.response.json().accessToken);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "64dee88d-6b69-4b1f-a1a5-72455b4732ac",
+          "name": "Login — senha errada é 401",
+          "request": {
+            "description": {
+              "content": "Credencial invalida nao pode revelar se o CPF existe.",
+              "type": "text/plain"
+            },
+            "url": {
+              "path": [
+                "auth",
+                "login"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "method": "POST",
+            "auth": {
+              "type": "basic",
+              "basic": [
+                {
+                  "type": "string",
+                  "value": "{{doctorCpf}}",
+                  "key": "username"
+                },
+                {
+                  "type": "string",
+                  "value": "senha-errada",
+                  "key": "password"
+                }
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "id": "f08575e6-16f9-4762-a576-22816ce431c4",
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"401\", () => pm.response.to.have.status(401));",
+                  "pm.test(\"corpo nao diz qual dos dois falhou\", () => {",
+                  "  const texto = pm.response.text().toLowerCase();",
+                  "  pm.expect(texto).to.not.include(\"senha\");",
+                  "  pm.expect(texto).to.not.include(\"password\");",
+                  "  pm.expect(texto).to.not.include(\"usuario\");",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "event": []
+    },
+    {
+      "id": "c4d39650-16e5-44e4-903e-f79b99eddbfa",
+      "name": "02 — Ativação de conta (via Mailpit)",
+      "item": [
+        {
+          "id": "0883ef42-4e67-4a7e-880c-8e9739a35c74",
+          "name": "Cadastrar paciente",
+          "request": {
+            "description": {
+              "content": "Rota publica (ADR-0015). Dispara a cadeia REST -> outbox -> Debezium -> Kafka -> identity -> e-mail de ativacao. CPF e e-mail sao gerados a cada execucao para a collection poder rodar de novo no mesmo compose.",
+              "type": "text/plain"
+            },
+            "url": {
+              "path": [
+                "api",
+                "patients"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [],
+              "variable": []
+            },
             "header": [
               {
                 "key": "Content-Type",
                 "value": "application/json"
               }
             ],
+            "method": "POST",
             "body": {
               "mode": "raw",
-              "raw": "{\n    \"taxIdentifier\": \"98765432100\",\n    \"crm\": \"CRM-SP 654321\",\n    \"specialty\": \"Neurologia\",\n    \"name\": \"Dr. João Mendes\",\n    \"email\": \"joao.mendes@hospital.local\"\n}"
+              "raw": "{\n  \"taxIdentifier\": \"{{newPatientCpf}}\",\n  \"name\": \"Paciente Collection\",\n  \"email\": \"{{newPatientEmail}}\",\n  \"phone\": \"+5511999999999\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth",
+              "noauth": []
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "id": "9809ccc6-25d3-45fa-9b0d-4cef707f27b5",
+                "type": "text/javascript",
+                "exec": [
+                  "// Gera um CPF valido (digitos verificadores corretos). A collection precisa",
+                  "// rodar mais de uma vez sobre o mesmo compose sem colidir com o cadastro da",
+                  "// execucao anterior, e CPF fixo garantiria 409 na segunda rodada.",
+                  "function gerarCpf() {",
+                  "  const n = Array.from({ length: 9 }, () => Math.floor(Math.random() * 10));",
+                  "  for (let j = 0; j < 2; j++) {",
+                  "    let peso = n.length + 1;",
+                  "    const soma = n.reduce((acc, d) => acc + d * peso--, 0);",
+                  "    const resto = (soma * 10) % 11;",
+                  "    n.push(resto === 10 ? 0 : resto);",
+                  "  }",
+                  "  return n.join('');",
+                  "}",
+                  "",
+                  "const cpf = gerarCpf();",
+                  "pm.collectionVariables.set(\"newPatientCpf\", cpf);",
+                  "pm.collectionVariables.set(\"newPatientEmail\", `paciente.${cpf}@exemplo.com`);",
+                  "pm.collectionVariables.set(\"newPatientPassword\", \"NovaSenha@123\");",
+                  "pm.collectionVariables.set(\"tentativasEmail\", 0);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "id": "83673489-75da-4c7d-8ecd-c0bfd6a0ad7e",
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"201 Created\", () => pm.response.to.have.status(201));",
+                  "const id = pm.response.json().id;",
+                  "pm.test(\"id presente\", () => pm.expect(id).to.be.a(\"string\").and.not.empty);",
+                  "pm.collectionVariables.set(\"newPatientId\", id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "8fcc58ee-5965-4e34-b94f-c4f6b0eaaf44",
+          "name": "Buscar e-mail de ativação no Mailpit",
+          "request": {
+            "description": {
+              "content": "API HTTP do Mailpit. A cadeia e assincrona, entao este request se reexecuta ate o e-mail chegar ou o teto estourar.",
+              "type": "text/plain"
             },
             "url": {
-              "raw": "{{baseUrl}}/api/doctors",
+              "path": [
+                "api",
+                "v1",
+                "search"
+              ],
+              "host": [
+                "{{mailpitUrl}}"
+              ],
+              "query": [
+                {
+                  "key": "query",
+                  "value": "to:{{newPatientEmail}}"
+                }
+              ],
+              "variable": []
+            },
+            "method": "GET",
+            "auth": {
+              "type": "noauth",
+              "noauth": []
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "id": "6d9f164a-f739-40d0-b775-105c4b88fdef",
+                "type": "text/javascript",
+                "exec": [
+                  "// Consistencia eventual: a projecao do history e alimentada por evento, e a",
+                  "// consulta logo apos o agendamento pode chegar antes dele. Reexecuta este",
+                  "// mesmo request ate o teto, em vez de assertar na primeira resposta -- e o",
+                  "// que separa 'projecao atrasada' de 'projecao quebrada' sem virar teste",
+                  "// instavel. Rode o newman com --delay-request 500 para espacar as tentativas.",
+                  "const teto = 30;",
+                  "let tentativas = Number(pm.collectionVariables.get(\"tentativasEmail\") || 0);",
+                  "const mensagens = pm.response.json().messages || [];",
+                  "",
+                  "if (mensagens.length === 0 && tentativas < teto) {",
+                  "  pm.collectionVariables.set(\"tentativasEmail\", tentativas + 1);",
+                  "  pm.execution.setNextRequest(pm.info.requestName);",
+                  "} else {",
+                  "  pm.test(`e-mail de ativacao chegou (tentativas: ${tentativas})`, () =>",
+                  "    pm.expect(mensagens.length, \"nenhum e-mail para o paciente novo\").to.be.above(0));",
+                  "  if (mensagens.length > 0) {",
+                  "    pm.collectionVariables.set(\"activationMessageId\", mensagens[0].ID);",
+                  "    pm.test(\"assunto e o convite de ativacao\", () =>",
+                  "      pm.expect(mensagens[0].Subject).to.include(\"Ative\"));",
+                  "  }",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "b90a243d-583d-483d-824e-8da9bbe8eee2",
+          "name": "Extrair token do corpo do e-mail",
+          "request": {
+            "description": {
+              "content": "O corpo traz activationToken=<uuid>. O token trafega em claro nos topicos de proposito, decisao registrada no ADR-0013.",
+              "type": "text/plain"
+            },
+            "url": {
+              "path": [
+                "api",
+                "v1",
+                "message",
+                "{{activationMessageId}}"
+              ],
+              "host": [
+                "{{mailpitUrl}}"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "method": "GET",
+            "auth": {
+              "type": "noauth",
+              "noauth": []
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "id": "8026f0a1-cb96-496a-89d8-0e641dbc5fca",
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200 OK\", () => pm.response.to.have.status(200));",
+                  "const texto = pm.response.json().Text || \"\";",
+                  "const achado = texto.match(/activationToken=([0-9a-fA-F-]{36})/);",
+                  "pm.test(\"token de ativacao presente no corpo\", () =>",
+                  "  pm.expect(achado, \"activationToken nao encontrado no e-mail\").to.not.be.null);",
+                  "if (achado) { pm.collectionVariables.set(\"activationToken\", achado[1]); }"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "d8afbb80-999a-4fba-81cd-b5a32faf5707",
+          "name": "Ativar a conta",
+          "request": {
+            "description": {
+              "content": "Troca o token de ativacao pela senha definitiva.",
+              "type": "text/plain"
+            },
+            "url": {
+              "path": [
+                "auth",
+                "activate"
+              ],
               "host": [
                 "{{baseUrl}}"
               ],
+              "query": [],
+              "variable": []
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "method": "POST",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"{{activationToken}}\",\n  \"password\": \"{{newPatientPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth",
+              "noauth": []
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "id": "25f844c8-23ae-48ab-b3dd-2e95e1212f7b",
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"2xx\", () => pm.expect(pm.response.code).to.be.within(200, 299));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "2d71976d-0cc2-4d2b-a587-5878784968ad",
+          "name": "Login com a senha nova",
+          "request": {
+            "description": {
+              "content": "Fecha a cadeia: a conta criada por evento autentica. Este e o paciente B da prova de isolamento da pasta 07.",
+              "type": "text/plain"
+            },
+            "url": {
+              "path": [
+                "auth",
+                "login"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "method": "POST",
+            "auth": {
+              "type": "basic",
+              "basic": [
+                {
+                  "type": "string",
+                  "value": "{{newPatientCpf}}",
+                  "key": "username"
+                },
+                {
+                  "type": "string",
+                  "value": "{{newPatientPassword}}",
+                  "key": "password"
+                }
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "id": "feac652e-a518-4b27-8149-0d235a8012ce",
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200 OK\", () => pm.response.to.have.status(200));",
+                  "const token = pm.response.json().accessToken;",
+                  "pm.test(\"accessToken presente\", () => pm.expect(token).to.be.a(\"string\").and.not.empty);",
+                  "pm.collectionVariables.set(\"patientBToken\", token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "6c594a3a-1e45-4d60-aeb4-f38032dac31c",
+          "name": "Reusar o token de ativação falha",
+          "request": {
+            "description": {
+              "content": "Token de ativacao e de uso unico. Precisa recusar com corpo de erro, nunca com 500.",
+              "type": "text/plain"
+            },
+            "url": {
+              "path": [
+                "auth",
+                "activate"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "method": "POST",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"{{activationToken}}\",\n  \"password\": \"OutraSenha@123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth",
+              "noauth": []
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "id": "fce8c20d-0ffc-4239-9879-be40ea81823d",
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"recusa com 4xx, nao 500\", () => pm.expect(pm.response.code).to.be.within(400, 499));",
+                  "pm.test(\"corpo traz erro legivel\", () => {",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(JSON.stringify(body)).to.match(/error|message/i);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "event": []
+    },
+    {
+      "id": "05aded43-59f8-40a7-aef4-8b0ac56a06ae",
+      "name": "03 — Cadastro de médico",
+      "item": [
+        {
+          "id": "071e0489-c687-4f13-9ffb-44768c25554e",
+          "name": "Cadastrar médico",
+          "request": {
+            "description": {
+              "content": "Rota autenticada, exige papel DOCTOR (ADR-0007). CPF e CRM gerados por execucao, pelo mesmo motivo do paciente.",
+              "type": "text/plain"
+            },
+            "url": {
               "path": [
                 "api",
                 "doctors"
-              ]
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [],
+              "variable": []
             },
-            "description": "Exige token de um usuário com papel DOCTOR (decisão do projeto, não documentada nos ADRs). Grava o Doctor e publica DoctorRegistered na mesma transação (ADR-0012)."
-          },
-          "response": []
-        }
-      ]
-    },
-    {
-      "name": "History GRaphQL",
-      "item": [
-        {
-          "name": "Consultar todos",
-          "request": {
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{accessToken}}",
-                  "type": "string"
-                }
-              ]
-            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "method": "POST",
-            "header": [],
             "body": {
               "mode": "raw",
-              "raw": "{\r\n  \"query\": \"query Appointments($page: Int!, $size: Int!, $patientId: ID) { appointments(page: $page, size: $size, patientId: $patientId) { appointments { appointmentId patientId doctorId scheduledAt status fitIn fitInReason patientName doctorName doctorSpecialty cancelledAt completedAt } page size totalElements totalPages } }\",\r\n  \"variables\": {\r\n    \"page\": 1,\r\n    \"size\": 5,\r\n    \"patientId\": \"00000000-0000-4000-8000-000000000003\"\r\n  }\r\n}",
+              "raw": "{\n  \"taxIdentifier\": \"{{newDoctorCpf}}\",\n  \"crm\": \"{{newDoctorCrm}}\",\n  \"specialty\": \"Cardiologia\",\n  \"name\": \"Dr. Collection\",\n  \"email\": \"dr.{{newDoctorCpf}}@hospital.local\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
                 }
               }
             },
-            "url": {
-              "raw": "{{baseUrl}}/graphql",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "graphql"
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "type": "string",
+                  "value": "{{doctorToken}}",
+                  "key": "token"
+                }
               ]
             }
           },
-          "response": []
+          "response": [],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "id": "2b5c155c-b418-4c4f-85ed-49683a165155",
+                "type": "text/javascript",
+                "exec": [
+                  "// Gera um CPF valido (digitos verificadores corretos). A collection precisa",
+                  "// rodar mais de uma vez sobre o mesmo compose sem colidir com o cadastro da",
+                  "// execucao anterior, e CPF fixo garantiria 409 na segunda rodada.",
+                  "function gerarCpf() {",
+                  "  const n = Array.from({ length: 9 }, () => Math.floor(Math.random() * 10));",
+                  "  for (let j = 0; j < 2; j++) {",
+                  "    let peso = n.length + 1;",
+                  "    const soma = n.reduce((acc, d) => acc + d * peso--, 0);",
+                  "    const resto = (soma * 10) % 11;",
+                  "    n.push(resto === 10 ? 0 : resto);",
+                  "  }",
+                  "  return n.join('');",
+                  "}",
+                  "",
+                  "const cpf = gerarCpf();",
+                  "pm.collectionVariables.set(\"newDoctorCpf\", cpf);",
+                  "pm.collectionVariables.set(\"newDoctorCrm\", `CRM-SP ${cpf.slice(0, 6)}`);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "id": "ee62de03-5eb2-4d71-a2e2-febee65eccc5",
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"201 Created\", () => pm.response.to.have.status(201));",
+                  "const id = pm.response.json().id;",
+                  "pm.test(\"id presente\", () => pm.expect(id).to.be.a(\"string\").and.not.empty);",
+                  "pm.collectionVariables.set(\"newDoctorId\", id);"
+                ]
+              }
+            }
+          ]
         },
         {
-          "name": "Consultar Futuras",
+          "id": "24c02bf2-ffcc-4b31-b592-36d52788a0c4",
+          "name": "Mesmo CPF e CRM é 409",
           "request": {
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{accessToken}}",
-                  "type": "string"
-                }
-              ]
+            "description": {
+              "content": "Duplicata precisa ser recusada por estado, nao aceita em silencio.",
+              "type": "text/plain"
             },
+            "url": {
+              "path": [
+                "api",
+                "doctors"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "method": "POST",
-            "header": [],
             "body": {
               "mode": "raw",
-              "raw": "{\r\n  \"query\": \"query Appointments($futureOnly: Boolean, $page: Int!, $size: Int!, $patientId: ID) { appointments(futureOnly: $futureOnly, page: $page, size: $size, patientId: $patientId) { appointments { appointmentId patientId doctorId scheduledAt status fitIn fitInReason patientName doctorName doctorSpecialty cancelledAt completedAt } page size totalElements totalPages } }\",\r\n  \"variables\": {\r\n    \"futureOnly\": true,\r\n    \"page\": 1,\r\n    \"size\": 5,\r\n    \"patientId\": \"00000000-0000-4000-8000-000000000003\"\r\n  }\r\n}",
+              "raw": "{\n  \"taxIdentifier\": \"{{newDoctorCpf}}\",\n  \"crm\": \"{{newDoctorCrm}}\",\n  \"specialty\": \"Cardiologia\",\n  \"name\": \"Dr. Collection\",\n  \"email\": \"dr.{{newDoctorCpf}}@hospital.local\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
                 }
               }
             },
-            "url": {
-              "raw": "{{baseUrl}}/graphql",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "graphql"
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "type": "string",
+                  "value": "{{doctorToken}}",
+                  "key": "token"
+                }
               ]
             }
           },
-          "response": []
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "id": "023a5308-1ac8-41a4-97d0-3c402000187f",
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"409 Conflict\", () => pm.response.to.have.status(409));"
+                ]
+              }
+            }
+          ]
         },
         {
-          "name": "Consultar por paciente",
+          "id": "49a620d8-e64a-4c88-adb8-6d3baa80183e",
+          "name": "Paciente não cadastra médico (403)",
           "request": {
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{accessToken}}",
-                  "type": "string"
-                }
-              ]
+            "description": {
+              "content": "Token valido com papel errado e 403, nao 401.",
+              "type": "text/plain"
             },
+            "url": {
+              "path": [
+                "api",
+                "doctors"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "method": "POST",
-            "header": [],
             "body": {
               "mode": "raw",
-              "raw": "{\r\n  \"query\": \"query Appointments($page: Int!, $size: Int!, $patientId: ID) { appointments(page: $page, size: $size, patientId: $patientId) { appointments { appointmentId patientId doctorId scheduledAt status fitIn fitInReason patientName doctorName doctorSpecialty cancelledAt completedAt } page size totalElements totalPages } }\",\r\n  \"variables\": {\r\n    \"page\": 1,\r\n    \"size\": 5,\r\n    \"patientId\": \"00000000-0000-4000-8000-000000000003\"\r\n  }\r\n}",
+              "raw": "{\n  \"taxIdentifier\": \"11122233396\",\n  \"crm\": \"CRM-SP 999999\",\n  \"specialty\": \"Cardiologia\",\n  \"name\": \"Nao deve entrar\",\n  \"email\": \"nao@hospital.local\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
                 }
               }
             },
-            "url": {
-              "raw": "{{baseUrl}}/graphql",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "graphql"
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "type": "string",
+                  "value": "{{patientAToken}}",
+                  "key": "token"
+                }
               ]
             }
           },
-          "response": []
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "id": "c57ecf9d-8c13-430b-8d2d-2d8586037ed6",
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"403 Forbidden\", () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ]
         }
-      ]
+      ],
+      "event": []
     },
     {
-      "name": "Appointments",
+      "id": "b4c81599-4f1f-484c-856d-dfd6ea376ae2",
+      "name": "04 — Agendamento",
       "item": [
         {
-          "name": "Registrar agendamento",
+          "id": "6de4b55d-a2a1-4269-9030-8aae99339826",
+          "name": "Agendar consulta",
           "request": {
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{accessToken}}",
-                  "type": "string"
-                }
-              ]
-            },
-            "method": "POST",
-            "header": [],
-            "body": {
-              "mode": "raw",
-              "raw": "{\r\n  \"patientId\": \"00000000-0000-4000-8000-000000000003\",\r\n  \"doctorId\": \"00000000-0000-4000-8000-000000000001\",\r\n  \"scheduledAt\": \"2026-09-20T14:00:00.000Z\",\r\n  \"fitIn\": false,\r\n  \"fitInReason\": null\r\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
+            "description": {
+              "content": "Criacao e de DOCTOR e NURSE (ADR-0007). Publica AppointmentScheduled e dispara o e-mail de confirmacao.",
+              "type": "text/plain"
             },
             "url": {
-              "raw": "{{baseUrl}}/api/appointments",
-              "host": [
-                "{{baseUrl}}"
-              ],
               "path": [
                 "api",
                 "appointments"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "method": "POST",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"patientId\": \"{{newPatientId}}\",\n  \"doctorId\": \"{{newDoctorId}}\",\n  \"scheduledAt\": \"{{horarioConsulta}}\",\n  \"fitIn\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "type": "string",
+                  "value": "{{nurseToken}}",
+                  "key": "token"
+                }
               ]
             }
           },
-          "response": []
+          "response": [],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "id": "64f51dea-ac04-4b80-a01a-a3029c57ece6",
+                "type": "text/javascript",
+                "exec": [
+                  "// Horario sempre no futuro e distinto por execucao: reaproveitar um",
+                  "// horario fixo daria 409 de conflito na segunda rodada.",
+                  "const quando = new Date(Date.now() + 1000 * 60 * 60 * 24 * 30);",
+                  "quando.setUTCMinutes(0, 0, 0);",
+                  "quando.setUTCMilliseconds(0);",
+                  "pm.collectionVariables.set(\"horarioConsulta\", quando.toISOString().replace(/\\.\\d{3}Z$/, \".000Z\"));",
+                  "",
+                  "const outro = new Date(quando.getTime() + 1000 * 60 * 60 * 24);",
+                  "pm.collectionVariables.set(\"horarioRemarcado\", outro.toISOString().replace(/\\.\\d{3}Z$/, \".000Z\"));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "id": "30add7e5-8137-4902-89e9-f6f7e9a0bbf6",
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"201 Created\", () => pm.response.to.have.status(201));",
+                  "const id = pm.response.json().id;",
+                  "pm.test(\"id presente\", () => pm.expect(id).to.be.a(\"string\").and.not.empty);",
+                  "pm.collectionVariables.set(\"appointmentId\", id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "7b89e8bc-9933-40a6-8d82-afdf6f35b473",
+          "name": "Mesmo médico e horário é 409",
+          "request": {
+            "description": {
+              "content": "Horario ocupado considera qualquer consulta nao cancelada (ADR-0010).",
+              "type": "text/plain"
+            },
+            "url": {
+              "path": [
+                "api",
+                "appointments"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "method": "POST",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"patientId\": \"{{newPatientId}}\",\n  \"doctorId\": \"{{newDoctorId}}\",\n  \"scheduledAt\": \"{{horarioConsulta}}\",\n  \"fitIn\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "type": "string",
+                  "value": "{{nurseToken}}",
+                  "key": "token"
+                }
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "id": "03db9179-de2f-4df6-b2f7-dc68c2f6e631",
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"409 Conflict\", () => pm.response.to.have.status(409));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "ec712145-b4e8-4167-8325-5cd5e3356fd8",
+          "name": "Encaixe autorizado é 201",
+          "request": {
+            "description": {
+              "content": "Encaixe e autorizacao explicita para violar o conflito, com motivo obrigatorio (ADR-0010).",
+              "type": "text/plain"
+            },
+            "url": {
+              "path": [
+                "api",
+                "appointments"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "method": "POST",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"patientId\": \"{{newPatientId}}\",\n  \"doctorId\": \"{{newDoctorId}}\",\n  \"scheduledAt\": \"{{horarioConsulta}}\",\n  \"fitIn\": true,\n  \"fitInReason\": \"Encaixe de urgencia pela recepcao\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "type": "string",
+                  "value": "{{nurseToken}}",
+                  "key": "token"
+                }
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "id": "70263090-535a-489a-adab-1bd538b8df72",
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"201 Created\", () => pm.response.to.have.status(201));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "7692953c-2663-4a5d-a01f-975fc721630c",
+          "name": "fitInReason sem fitIn é 400",
+          "request": {
+            "description": {
+              "content": "Motivo com encaixe falso e recusado, nao ignorado (ADR-0010).",
+              "type": "text/plain"
+            },
+            "url": {
+              "path": [
+                "api",
+                "appointments"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "method": "POST",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"patientId\": \"{{newPatientId}}\",\n  \"doctorId\": \"{{newDoctorId}}\",\n  \"scheduledAt\": \"{{horarioRemarcado}}\",\n  \"fitIn\": false,\n  \"fitInReason\": \"motivo sem encaixe\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "type": "string",
+                  "value": "{{nurseToken}}",
+                  "key": "token"
+                }
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "id": "f3f965d4-fb5e-4e0f-8741-c44a6f4420c0",
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"400 Bad Request\", () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "087a576d-f475-4b4b-8654-af2776c6404d",
+          "name": "Horário no passado é 400",
+          "request": {
+            "description": {
+              "content": "Passado e payload invalido (400), nao recusa por estado (409). Medido na PR #36.",
+              "type": "text/plain"
+            },
+            "url": {
+              "path": [
+                "api",
+                "appointments"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "method": "POST",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"patientId\": \"{{newPatientId}}\",\n  \"doctorId\": \"{{newDoctorId}}\",\n  \"scheduledAt\": \"2020-01-01T13:00:00.000Z\",\n  \"fitIn\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "type": "string",
+                  "value": "{{nurseToken}}",
+                  "key": "token"
+                }
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "id": "1e053779-c9f6-4eee-bc1e-eec5efb0bda3",
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"400 Bad Request\", () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "d1ce33ee-c323-498a-a60d-94f29e57ec5b",
+          "name": "Paciente não agenda (403)",
+          "request": {
+            "description": {
+              "content": "O paciente nao marca a propria consulta (ADR-0007).",
+              "type": "text/plain"
+            },
+            "url": {
+              "path": [
+                "api",
+                "appointments"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "method": "POST",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"patientId\": \"{{newPatientId}}\",\n  \"doctorId\": \"{{newDoctorId}}\",\n  \"scheduledAt\": \"{{horarioRemarcado}}\",\n  \"fitIn\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "type": "string",
+                  "value": "{{patientAToken}}",
+                  "key": "token"
+                }
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "id": "118ca6a2-c8fa-4ddb-8905-35d6ad8e9735",
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"403 Forbidden\", () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "b93804cf-4402-483f-9cf3-e1fa3ed50b07",
+          "name": "Sem token é 401",
+          "request": {
+            "description": {
+              "content": "Borda do gateway: rota protegida sem credencial e 401.",
+              "type": "text/plain"
+            },
+            "url": {
+              "path": [
+                "api",
+                "appointments"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "method": "POST",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"patientId\": \"{{newPatientId}}\",\n  \"doctorId\": \"{{newDoctorId}}\",\n  \"scheduledAt\": \"{{horarioRemarcado}}\",\n  \"fitIn\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth",
+              "noauth": []
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "id": "35634577-0b14-4681-a995-40ff22707740",
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"401 Unauthorized\", () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ]
         }
-      ]
+      ],
+      "event": []
+    },
+    {
+      "id": "316cad74-cbba-41f1-8376-afaecb284ae6",
+      "name": "05 — Ciclo de vida da consulta",
+      "item": [
+        {
+          "id": "8f03020a-4f93-483f-b902-87d641d7ffc6",
+          "name": "Remarcar",
+          "request": {
+            "description": {
+              "content": "Publica AppointmentRescheduled com previousScheduledAt lido antes da transicao. Subcaminho tem matcher proprio no SecurityConfig.",
+              "type": "text/plain"
+            },
+            "url": {
+              "path": [
+                "api",
+                "appointments",
+                "{{appointmentId}}",
+                "reschedule"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "method": "POST",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"scheduledAt\": \"{{horarioRemarcado}}\",\n  \"fitIn\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "type": "string",
+                  "value": "{{doctorToken}}",
+                  "key": "token"
+                }
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "id": "ebf6fac9-7552-411d-8a41-976673b735e4",
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"2xx\", () => pm.expect(pm.response.code).to.be.within(200, 299));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "33250731-c83b-4c50-a199-dcf22574d620",
+          "name": "Concluir",
+          "request": {
+            "description": {
+              "content": "Conclusao publica AppointmentCompleted.",
+              "type": "text/plain"
+            },
+            "url": {
+              "path": [
+                "api",
+                "appointments",
+                "{{appointmentId}}",
+                "complete"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "type": "string",
+                  "value": "{{doctorToken}}",
+                  "key": "token"
+                }
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "id": "305c3abb-87f1-4350-a4f7-c4d020830d88",
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"2xx\", () => pm.expect(pm.response.code).to.be.within(200, 299));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "8466c3c8-0799-4777-a50f-74293b9f5e57",
+          "name": "Concluir de novo é idempotente",
+          "request": {
+            "description": {
+              "content": "Repetir a conclusao nao pode falhar nem publicar um segundo evento (PR #36).",
+              "type": "text/plain"
+            },
+            "url": {
+              "path": [
+                "api",
+                "appointments",
+                "{{appointmentId}}",
+                "complete"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "type": "string",
+                  "value": "{{doctorToken}}",
+                  "key": "token"
+                }
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "id": "7bc1e004-c9af-483c-b3e7-6cc11150ade1",
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"2xx, nao 409\", () => pm.expect(pm.response.code).to.be.within(200, 299));"
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "event": []
+    },
+    {
+      "id": "9c91e320-5070-4d4e-a96c-b2fb7bf29458",
+      "name": "06 — Histórico (GraphQL)",
+      "item": [
+        {
+          "id": "c25953a4-c06b-42ac-9ac3-6c6e1f585839",
+          "name": "Paciente consulta o próprio histórico",
+          "request": {
+            "description": {
+              "content": "Projecao read-only alimentada por evento (ADR-0002). O paciente nao informa patientId: o escopo sai do sub do token.",
+              "type": "text/plain"
+            },
+            "url": {
+              "path": [
+                "graphql"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "method": "POST",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"query\":\"{ appointments(page:1,size:10){ projectionFreshness totalElements appointments{ appointmentId status patientName doctorName doctorSpecialty scheduledAt } } }\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "type": "string",
+                  "value": "{{patientBToken}}",
+                  "key": "token"
+                }
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "id": "f60aa866-e489-4830-a8b2-e424b91cf6cd",
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.collectionVariables.get(\"tentativasHistorico\") === undefined) {",
+                  "  pm.collectionVariables.set(\"tentativasHistorico\", 0);",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "id": "c885ad2e-2b10-4de3-86cf-2ae0af12bc7b",
+                "type": "text/javascript",
+                "exec": [
+                  "// Consistencia eventual: a projecao do history e alimentada por evento, e a",
+                  "// consulta logo apos o agendamento pode chegar antes dele. Reexecuta este",
+                  "// mesmo request ate o teto, em vez de assertar na primeira resposta -- e o",
+                  "// que separa 'projecao atrasada' de 'projecao quebrada' sem virar teste",
+                  "// instavel. Rode o newman com --delay-request 500 para espacar as tentativas.",
+                  "const teto = 30;",
+                  "let tentativas = Number(pm.collectionVariables.get(\"tentativasHistorico\") || 0);",
+                  "const dados = pm.response.json().data.appointments;",
+                  "",
+                  "if (dados.totalElements === 0 && tentativas < teto) {",
+                  "  pm.collectionVariables.set(\"tentativasHistorico\", tentativas + 1);",
+                  "  pm.execution.setNextRequest(pm.info.requestName);",
+                  "} else {",
+                  "  pm.test(\"200 OK\", () => pm.response.to.have.status(200));",
+                  "  pm.test(`projecao alcancou o agendamento (tentativas: ${tentativas})`, () =>",
+                  "    pm.expect(dados.totalElements, \"projecao vazia depois do teto\").to.be.above(0));",
+                  "  pm.test(\"carimbo de frescor preenchido\", () =>",
+                  "    pm.expect(dados.projectionFreshness).to.not.be.null);",
+                  "  pm.test(\"a consulta agendada esta na projecao\", () => {",
+                  "    const ids = dados.appointments.map(a => a.appointmentId);",
+                  "    pm.expect(ids).to.include(pm.collectionVariables.get(\"appointmentId\"));",
+                  "  });",
+                  "  pm.test(\"traz nome do paciente e do medico\", () => {",
+                  "    const primeira = dados.appointments[0];",
+                  "    pm.expect(primeira.patientName).to.be.a(\"string\").and.not.empty;",
+                  "    pm.expect(primeira.doctorName).to.be.a(\"string\").and.not.empty;",
+                  "  });",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "48047db8-1dee-49b0-aa48-fbae5239e1a8",
+          "name": "Médico consulta por paciente",
+          "request": {
+            "description": {
+              "content": "DOCTOR e NURSE precisam informar patientId; o paciente, nao.",
+              "type": "text/plain"
+            },
+            "url": {
+              "path": [
+                "graphql"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "method": "POST",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"query\":\"{ appointments(patientId:\\\"{{newPatientId}}\\\",page:1,size:10){ projectionFreshness totalElements appointments{ appointmentId status scheduledAt } } }\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "type": "string",
+                  "value": "{{doctorToken}}",
+                  "key": "token"
+                }
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "id": "0de9cd69-3fcf-4c71-96ee-5ca90a924ad1",
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200 OK\", () => pm.response.to.have.status(200));",
+                  "const dados = pm.response.json().data.appointments;",
+                  "pm.test(\"enxerga a consulta do paciente informado\", () =>",
+                  "  pm.expect(dados.totalElements).to.be.above(0));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "03f117a6-af8f-4f8c-9b23-90849455ba43",
+          "name": "futureOnly filtra",
+          "request": {
+            "description": {
+              "content": "A consulta do fluxo foi concluida na pasta 05, entao o filtro de futuras precisa devolver menos que o total.",
+              "type": "text/plain"
+            },
+            "url": {
+              "path": [
+                "graphql"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "method": "POST",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"query\":\"{ appointments(patientId:\\\"{{newPatientId}}\\\",futureOnly:true,page:1,size:10){ totalElements appointments{ appointmentId scheduledAt } } }\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "type": "string",
+                  "value": "{{doctorToken}}",
+                  "key": "token"
+                }
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "id": "8381904f-f67e-4185-a485-5204444c2ede",
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200 OK\", () => pm.response.to.have.status(200));",
+                  "const dados = pm.response.json().data.appointments;",
+                  "pm.test(\"futureOnly nao estoura\", () => pm.expect(dados.totalElements).to.be.a(\"number\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "bf813f6f-5aa3-444a-8cd6-bd143ab72d9b",
+          "name": "GraphQL sem token é 401",
+          "request": {
+            "description": {
+              "content": "Recusa de autenticacao acontece antes do schema. Pela porta unica quem recusa e o proprio gateway, que responde 401 com WWW-Authenticate e SEM corpo -- o application/problem+json que o history passou a emitir na PR #39 so aparece chamando o servico dentro da rede do Compose, e o resource_metadata do header e o que identifica qual dos dois recusou. Regra recusada dentro do use case, ao contrario, volta 200 com errors[].",
+              "type": "text/plain"
+            },
+            "url": {
+              "path": [
+                "graphql"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "method": "POST",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"query\":\"{__typename}\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth",
+              "noauth": []
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "id": "981397a2-f28d-403b-a046-9f44e3f22a27",
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"401 Unauthorized\", () => pm.response.to.have.status(401));",
+                  "pm.test(\"WWW-Authenticate presente\", () =>",
+                  "  pm.expect(pm.response.headers.get(\"WWW-Authenticate\")).to.not.be.null);",
+                  "// Quem recusou foi a borda, nao o history: o resource_metadata aponta",
+                  "// para o proprio gateway. Trocar isso por problem+json significaria que",
+                  "// a recusa passou a vir do servico, e o teste deve acusar a mudanca.",
+                  "pm.test(\"quem recusa e a borda, e o header diz qual\", () =>",
+                  "  pm.expect(pm.response.headers.get(\"WWW-Authenticate\")).to.include(\"resource_metadata\"));"
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "event": []
+    },
+    {
+      "id": "d233dfa5-ef6c-405d-addb-e7ad7b1f18c5",
+      "name": "07 — Autorização: um paciente não vê o outro",
+      "item": [
+        {
+          "id": "37e258a5-847a-4ec2-9629-2008bc253c5c",
+          "name": "Paciente A não vê a consulta do paciente B",
+          "request": {
+            "description": {
+              "content": "Paciente A e a conta semeada; B foi criado e ativado na pasta 02, e a consulta agendada na 04 e dele. O escopo vive no use case (ADR-0007).",
+              "type": "text/plain"
+            },
+            "url": {
+              "path": [
+                "graphql"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "method": "POST",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"query\":\"{ appointments(page:1,size:10){ projectionFreshness totalElements appointments{ appointmentId status patientName doctorName doctorSpecialty scheduledAt } } }\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "type": "string",
+                  "value": "{{patientAToken}}",
+                  "key": "token"
+                }
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "id": "fc6aec2b-bb6a-4fc1-9ea2-a4ab4aa0129e",
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200 OK\", () => pm.response.to.have.status(200));",
+                  "const dados = pm.response.json().data.appointments;",
+                  "const ids = dados.appointments.map(a => a.appointmentId);",
+                  "pm.test(\"a consulta do paciente B nao aparece\", () =>",
+                  "  pm.expect(ids).to.not.include(pm.collectionVariables.get(\"appointmentId\")));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "74160b08-d627-4a53-8768-753fa056036c",
+          "name": "Paciente A informando o id de B é ignorado",
+          "request": {
+            "description": {
+              "content": "O argumento patientId e ignorado para papel PATIENT: o escopo sai do sub do token, nunca do corpo da requisicao. E a prova de que passar o id de outro nao devolve dado de outro.",
+              "type": "text/plain"
+            },
+            "url": {
+              "path": [
+                "graphql"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "method": "POST",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"query\":\"{ appointments(patientId:\\\"{{newPatientId}}\\\",page:1,size:10){ projectionFreshness totalElements appointments{ appointmentId status scheduledAt } } }\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "type": "string",
+                  "value": "{{patientAToken}}",
+                  "key": "token"
+                }
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "id": "3c4b87d4-8290-49fb-a896-252ef9663327",
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200 OK\", () => pm.response.to.have.status(200));",
+                  "const corpo = pm.response.json();",
+                  "if (corpo.errors) {",
+                  "  pm.test(\"recusado explicitamente\", () => pm.expect(corpo.errors.length).to.be.above(0));",
+                  "} else {",
+                  "  const ids = corpo.data.appointments.appointments.map(a => a.appointmentId);",
+                  "  pm.test(\"nao devolve a consulta de B\", () =>",
+                  "    pm.expect(ids).to.not.include(pm.collectionVariables.get(\"appointmentId\")));",
+                  "}"
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "event": []
     }
   ],
+  "event": [],
   "variable": [
     {
-      "key": "baseUrl",
-      "value": "http://localhost:8080",
-      "description": "gateway, porta única de entrada (ADR-0014). Login e cadastro de médico passam por ele."
+      "type": "any",
+      "value": "",
+      "key": "doctorToken"
     },
     {
-      "key": "testDoctorCpf",
-      "value": "39053344705",
-      "description": "Conta semeada pela V1 (papel DOCTOR, Dra. Helena Prado)."
+      "type": "any",
+      "value": "",
+      "key": "nurseToken"
     },
     {
-      "key": "testDoctorPassword",
-      "value": "medico@123"
+      "type": "any",
+      "value": "",
+      "key": "patientAToken"
     },
     {
-      "key": "accessToken",
-      "value": ""
+      "type": "any",
+      "value": "",
+      "key": "patientBToken"
+    },
+    {
+      "type": "any",
+      "value": "",
+      "key": "newPatientCpf"
+    },
+    {
+      "type": "any",
+      "value": "",
+      "key": "newPatientEmail"
+    },
+    {
+      "type": "any",
+      "value": "",
+      "key": "newPatientPassword"
+    },
+    {
+      "type": "any",
+      "value": "",
+      "key": "newPatientId"
+    },
+    {
+      "type": "any",
+      "value": "",
+      "key": "activationMessageId"
+    },
+    {
+      "type": "any",
+      "value": "",
+      "key": "activationToken"
+    },
+    {
+      "type": "any",
+      "value": "",
+      "key": "newDoctorCpf"
+    },
+    {
+      "type": "any",
+      "value": "",
+      "key": "newDoctorCrm"
+    },
+    {
+      "type": "any",
+      "value": "",
+      "key": "newDoctorId"
+    },
+    {
+      "type": "any",
+      "value": "",
+      "key": "appointmentId"
+    },
+    {
+      "type": "any",
+      "value": "",
+      "key": "horarioConsulta"
+    },
+    {
+      "type": "any",
+      "value": "",
+      "key": "horarioRemarcado"
+    },
+    {
+      "type": "any",
+      "value": "0",
+      "key": "tentativasEmail"
+    },
+    {
+      "type": "any",
+      "value": "0",
+      "key": "tentativasHistorico"
     }
-  ]
+  ],
+  "info": {
+    "_postman_id": "40e9db6b-d8ee-4727-a53c-7e626bd69094",
+    "name": "hospital-management",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": {
+      "content": "Percurso completo do sistema pela porta unica 8080 (ADR-0014): saude, autenticacao dos tres papeis, ativacao de conta lendo o e-mail pela API HTTP do Mailpit, cadastro, agendamento com as invariantes do ADR-0010, ciclo de vida da consulta, historico em GraphQL e a prova de que um paciente nao enxerga a consulta de outro.\n\nNenhuma requisicao fala com servico interno: tudo atravessa o gateway. Rode as pastas em ordem -- cada uma consome o que a anterior guardou em variavel. CPF, CRM, e-mail e horario sao gerados a cada execucao, entao a collection roda mais de uma vez sobre o mesmo compose sem colidir.\n\nAs duas pastas assincronas (02 e 06) reexecutam o proprio request ate um teto em vez de assertar na primeira resposta: e o que trata consistencia eventual sem virar teste instavel.",
+      "type": "text/plain"
+    }
+  }
 }

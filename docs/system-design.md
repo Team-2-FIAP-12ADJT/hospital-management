@@ -827,17 +827,25 @@ sem contrapartida na avaliação.
 
 ### B. Topologia e portas
 
-Treze containers, mais o registrador de conectores, de uso único. Apenas três
-portas publicadas no host.
+Treze containers, mais o registrador de conectores, de uso único. Sete portas
+publicadas no host.
 
 | Publicada | Componente | Uso |
 |---|---|---|
 | 8080 | gateway | única porta de API, Swagger agregado, GraphiQL, `/health/system` |
 | 8090 | kafbat-ui | inspeção de tópicos, mensagens e DLT |
 | 8025 | mailpit | caixa de e-mail para conferir ativação e lembrete |
+| 5433 | identity-db | inspeção do schema e dos dados em cliente gráfico |
+| 5434 | scheduling-db | idem |
+| 5435 | history-db | idem |
+| 5436 | notification-db | idem |
 
-Internos à rede do Compose: as cinco aplicações, os quatro Postgres, o Kafka, o
-Debezium Connect e o registrador de conectores.
+Os bancos publicam em 5433-5436, e não em 5432, que é onde costuma estar um
+Postgres da própria máquina. É publicação para inspeção: dentro da rede do
+Compose eles continuam em 5432, e nenhuma aplicação passa pela porta do host.
+
+Internos à rede do Compose: as cinco aplicações, o Kafka, o Debezium Connect e o
+registrador de conectores.
 
 Os Postgres produtores de evento — scheduling e identity, e **apenas** eles —
 sobem com `wal_level=logical`, `max_wal_senders` e `max_replication_slots`
