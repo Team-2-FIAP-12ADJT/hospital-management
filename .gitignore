@@ -70,7 +70,10 @@ nb-configuration.xml
 docker-compose.override.yml
 
 # --- Ferramentas locais de agente --------------------------------------------
-.claude/settings.local.json
+# Diretorio inteiro: alem das configuracoes locais, o Claude Code cria worktrees
+# de revisao em .claude/worktrees/, que sao clones de trabalho do proprio repo
+# (dezenas de MB) e apareciam como conteudo versionavel da main.
+.claude/
 .maestri/
 
 # --- Sistema operacional ------------------------------------------------------

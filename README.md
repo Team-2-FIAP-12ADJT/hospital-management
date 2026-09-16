@@ -1,18 +1,5 @@
 # hospital-management
 
-> ⚠️ **RASCUNHO — não é a versão de entrega.**
->
-> O sistema descrito aqui está **parcialmente implementado**: `docker compose up`
-> hoje sobe a infraestrutura, o `identity` e o `gateway`, e nada mais. O que está
-> de pé neste momento é exatamente o que a seção
-> [Estado da implementação](#estado-da-implementação) lista — as demais seções
-> descrevem o sistema **como desenhado**.
->
-> Este documento é o ticket 35, que fecha só depois dos tickets **30**
-> (autorização por papel no histórico) e **33** (roteamento do gateway). Até lá,
-> tratar como rascunho: o passo a passo de subir e testar **ainda não vale
-> ponta a ponta**.
-
 Backend hospitalar com agendamento de consultas, histórico de atendimentos e
 lembretes automáticos — FIAP Tech Challenge, Fase 3.
 
@@ -43,16 +30,49 @@ docker compose up --build
 Na primeira vez o build baixa as dependências Maven e leva alguns minutos. Os
 bancos têm *healthcheck* e as aplicações só sobem depois deles.
 
-### As três portas publicadas
+⚠️ **Use `--build`.** `docker compose up` sem ele reaproveita imagem já existente
+na máquina, e imagem velha sobe com migrações velhas — o sintoma aparece longe da
+causa, como conector Debezium falhando por tabela inexistente.
 
-Nenhum banco e nenhum serviço interno publica porta no host (ADR-0014). Só estas
-três:
+São **14 serviços declarados e 13 containers de pé**: o `connector-registrar` é de
+uso único e sair com código `0` é o resultado certo, não falha.
+
+### O primeiro minuto
+
+```bash
+curl -s localhost:8080/health/system                       # público, lista os 4 serviços
+TOKEN=$(curl -s -u 39053344705:medico@123 \
+  -X POST localhost:8080/auth/login | jq -r .accessToken)  # Basic entra, JWT sai
+curl -s localhost:8080/api/appointments -H "Authorization: Bearer $TOKEN"
+```
+
+Swagger agregado dos quatro serviços em
+[`localhost:8080/swagger-ui/index.html`](http://localhost:8080/swagger-ui/index.html);
+tópicos e mensagens no kafbat-ui em `:8090`; e-mails no Mailpit em `:8025`.
+
+O percurso inteiro, do login ao histórico, está automatizado na collection do
+Postman — veja [Testes](#testes).
+
+### As portas publicadas
+
+Nenhuma aplicação interna publica porta no host: a API sai toda pelo gateway
+(ADR-0014). Publicam porta o gateway, os dois painéis e os quatro bancos.
 
 | Porta | O que é | Para quê |
 |---|---|---|
 | **8080** | gateway | única porta de API: REST, GraphQL, Swagger agregado e `GET /health/system` |
 | **8090** | kafbat-ui | inspecionar tópicos, mensagens e DLT — é onde se vê o evento passar |
 | **8025** | Mailpit | caixa de e-mail local: ativação de conta e lembretes chegam aqui |
+| **5433** | identity-db | Postgres, para abrir o schema num cliente gráfico |
+| **5434** | scheduling-db | idem |
+| **5435** | history-db | idem |
+| **5436** | notification-db | idem |
+
+Os bancos usam `hospital`/`hospital` e o nome do banco é o do serviço
+(`identity`, `scheduling`, `history`, `notification`). São 5433-5436, e não
+5432, porque 5432 costuma estar ocupada por um Postgres instalado na máquina —
+colisão ali derrubaria o `up`. Dentro da rede do Compose eles seguem em 5432, e
+é assim que as aplicações os alcançam.
 
 Para derrubar tudo, inclusive os volumes:
 
@@ -144,6 +164,24 @@ consulta. O enunciado dá a ele um verbo só — visualizar.
 | Agendamento publica ao criar ou editar | `scheduling` — outbox, 4 eventos de consulta |
 | Notificações consome e avisa o paciente | `notification` — confirmação e lembrete |
 
+A tabela acima diz **onde** cada capacidade vive. Quem pode exercê-la é a matriz
+do ADR-0007, e ela não se lê por ator isolado:
+
+| Perfil | `scheduling` | `history` |
+|---|---|---|
+| Médico | criar, remarcar, cancelar e concluir consultas | consultar |
+| Enfermeiro | criar, remarcar, cancelar e concluir consultas | consultar |
+| Paciente | — | consultar **apenas as suas** |
+
+Médico e enfermeiro têm **as mesmas** capacidades no agendamento: o enunciado
+atribui "criação e edição das consultas" aos dois, e criar e editar são o mesmo
+ato. Quem espera que só o enfermeiro agende está lendo a linha do enfermeiro sem
+a do médico.
+
+O escopo do paciente não vem do corpo da requisição: informar o `patientId` de
+outra pessoa não devolve dado dela, porque para o papel `PATIENT` o argumento é
+ignorado e o escopo sai do `sub` do token.
+
 ---
 
 ## Estrutura e regra de dependência
@@ -221,12 +259,33 @@ GraphQL (a projeção deixa de receber).
 **O que fazer:**
 
 ```bash
-docker compose ps        # o registrador de conectores deve ter saído com código 0
-docker compose logs      # e o Debezium Connect estar saudável
+docker compose ps                        # connector-registrar deve estar em exited (0)
+docker compose logs connector-registrar  # e dizer que os dois alcançaram RUNNING
+docker compose exec kafka-connect \
+  curl -s localhost:8083/connectors/identity-outbox/status | jq '.connector.state, .tasks[].state'
 ```
 
+Confira o estado **das tasks**, não só o do conector: task `FAILED` com conector
+`RUNNING` é o caso que passa despercebido, porque o registro consta como feito e
+nada flui.
+
 Se o registrador falhou, basta subi-lo de novo — o registro é idempotente e pode
-ser repetido quantas vezes for preciso.
+ser repetido quantas vezes for preciso:
+
+```bash
+docker compose up connector-registrar
+```
+
+Uma falha tem causa específica e vale reconhecer:
+
+```
+Unable to create filtered publication identity_outbox_publication
+No table filters found for filtered publication identity_outbox_publication
+```
+
+Significa que a tabela `public.outbox_events` não existia quando o conector foi
+registrado — o Debezium filtra a publicação por ela. Quase sempre é imagem velha
+subindo com migração velha; suba com `--build` e registre de novo.
 
 Ao voltar, o Debezium retoma do ponto onde parou e o atraso se dissolve sozinho —
 nada foi perdido, porque o evento estava no banco desde o commit. Use o
@@ -239,9 +298,13 @@ nada foi perdido, porque o evento estava no banco desde o commit. Use o
 Registradas aqui porque decisão explicada se defende melhor que decisão
 escondida.
 
-- **CPF é `UNIQUE` por tabela, não por pessoa.** Quem for médico e paciente teria
-  dois cadastros e duas contas. Identidade única de pessoa exigiria um cadastro
-  mestre, e a condição para extraí-lo está registrada no ADR-0015.
+- **Uma pessoa não pode ser médico e paciente.** O `UNIQUE` de CPF é por tabela,
+  então os dois serviços de cadastro checam também a tabela do outro papel e
+  recusam com `409`. É pre-check, não constraint: não existe `UNIQUE` que
+  atravesse duas tabelas, então dois cadastros **simultâneos** do mesmo CPF em
+  papéis diferentes ainda passam, e nesse caso o `identity` recusa a segunda
+  conta e registra o descarte em log. Identidade única de pessoa exigiria um
+  cadastro mestre, e a condição para extraí-lo está no ADR-0015.
 - **Consistência eventual visível ao usuário.** Uma consulta recém-criada pode
   não aparecer imediatamente no histórico — o `history` é projeção alimentada por
   evento. É comportamento esperado, não defeito; a resposta GraphQL carrega
@@ -259,42 +322,6 @@ escondida.
 
 ---
 
-## Estado da implementação
-
-> Esta seção é o motivo do aviso de rascunho no topo. Ela é a única parte do
-> documento que descreve o que a stack faz **hoje**; todo o resto descreve o
-> sistema como desenhado. Quando os tickets abaixo fecharem, esta seção sai e o
-> aviso do topo sai com ela.
-
-O desenho está completo e publicado; a implementação está em andamento. Hoje, na
-`main`:
-
-| Pronto | |
-|---|---|
-| Esqueleto Maven dos 5 módulos, `Dockerfile` multi-stage | ticket 01 |
-| Compose: 4 Postgres, Kafka KRaft, kafbat-ui, Mailpit | tickets 03–05 |
-| Contratos dos 8 eventos em `docs/contracts/` | tickets 06–08 |
-| `identity`: schema, contas semeadas, `POST /auth/login` (Basic → JWT) | tickets 10–11 |
-| `identity`: JWKS publicado; gateway valida o token **offline** | ticket 12 |
-| `scheduling`: schemas `participants`/`scheduling` e outbox transacional | tickets 13–14 |
-
-**Ainda não implementado:** cadastro de pessoas e de consultas, os conectores
-Debezium no Compose, os consumidores de `history` e `notification`, o GraphQL, o
-roteamento e o Swagger agregado do gateway. As seções acima descrevem o sistema
-como desenhado — o que a stack faz **hoje** é o que esta tabela lista.
-
-Enquanto o gateway não roteia `/auth/login` (ticket 33), o `identity` não é
-alcançável pela porta 8080. O arquivo `docker-compose.override.yml` na raiz o
-publica em **8081** para depuração — ele é local, não versionado, e some quando
-o roteamento entrar. Com ele, o login de hoje é:
-
-```bash
-docker compose up -d identity-db identity gateway
-curl -s -u 39053344705:medico@123 -X POST http://localhost:8081/auth/login
-```
-
----
-
 ## Testes
 
 ```bash
@@ -305,5 +332,22 @@ docker run --rm -v "$PWD":/app -v "$HOME/.m2":/root/.m2 -w /app \
 Quem tiver Java 26 e Maven 3.9+ na máquina pode rodar `mvn test` direto — mas o
 caminho garantido continua sendo o Docker.
 
-A collection do Postman em [`postman/`](postman/) exercita os fluxos pela API.
-Veja [`postman/README.md`](postman/README.md) para o uso interativo e via Newman.
+Com a stack de pé, a collection do Postman em [`postman/`](postman/) atravessa o
+sistema inteiro pela porta única — 30 requisições e 53 asserções, do login à
+prova de que um paciente não enxerga a consulta de outro, com a ativação de conta
+lendo o e-mail pela API do Mailpit:
+
+```bash
+npx newman@6 run postman/hospital-management.postman_collection.json \
+  -e postman/hospital-management-local.postman_environment.json \
+  --delay-request 400
+```
+
+Ela roda mais de uma vez sobre o mesmo `compose up`: CPF, CRM, e-mail e horário
+são gerados a cada execução. Detalhes em
+[`postman/README.md`](postman/README.md).
+
+O roteiro de validação manual, para conferir o que a suíte não alcança — os 13
+containers de pé, os conectores registrados, o evento visível no kafbat-ui e o
+e-mail no Mailpit — está em
+[`docs/validacao-manual.md`](docs/validacao-manual.md).
