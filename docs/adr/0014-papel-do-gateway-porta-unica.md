@@ -12,21 +12,31 @@ ele pode cumprir:
 - **Saúde agregada**: `GET /health/system` consolida o actuator dos serviços e
   das dependências de infraestrutura em uma resposta
 
-Junto com isso, só as portas necessárias são publicadas no host — gateway,
-console do Kafka e caixa de e-mail. Aplicações e bancos ficam acessíveis apenas
-dentro da rede do Compose.
+Junto com isso, só as portas necessárias são publicadas no host. **Nenhuma
+aplicação publica porta**: a API sai inteira pelo gateway, e é esse o ponto da
+decisão.
 
 | Publicada | Serviço |
 |---|---|
 | 8080 | gateway (única porta de API) |
 | 8090 | kafbat-ui |
 | 8025 | mailpit (UI) |
+| 5433-5436 | os quatro Postgres, para inspeção |
+
+Os bancos passaram a publicar porta depois desta decisão, em 5433-5436, para que
+quem avalia possa abrir schema e dados num cliente gráfico sem `docker compose
+exec`. Isso não afrouxa a porta única: quem fala com os bancos pela porta do host
+é uma ferramenta de inspeção, nunca uma aplicação da stack — dentro da rede do
+Compose eles seguem em 5432. Publicar em 5432 no host derrubaria o `up` de quem
+já tem um Postgres instalado.
 
 ## Consequences
 
 Quem avalia precisa conhecer uma URL só, e a collection do Postman aponta
 inteiramente para `:8080`. Em troca, depurar um serviço isolado exige `docker
-compose exec` ou publicar a porta temporariamente, e a stack de treze containers
+compose exec` ou publicar a porta temporariamente — o que já vale só para as
+aplicações, já que os bancos passaram a ser publicados —, e a stack de treze
+containers
 passa a ter um único ponto por onde tudo entra: se o gateway não sobe, a API
 inteira fica inalcançável mesmo com todos os serviços saudáveis — e é justamente
 o `GET /health/system` que torna esse diagnóstico imediato.

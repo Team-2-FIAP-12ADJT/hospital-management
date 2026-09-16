@@ -3,8 +3,15 @@ name: hospital-management
 # Um banco por serviço (ADR-0008). Só scheduling e identity produzem evento, e só
 # eles sobem com replicação lógica ligada — sem isso o Debezium não lê o WAL.
 #
-# Nenhum banco publica porta no host: o acesso é pela rede do Compose. As únicas
-# portas publicadas são 8080 (gateway), 8090 (kafbat-ui) e 8025 (mailpit).
+# Os quatro bancos publicam porta no host, em 5433-5436, para que quem avalia
+# possa abrir o schema e os dados num cliente gráfico (pgAdmin, DBeaver) sem
+# precisar de `docker compose exec`. Não é 5432: essa é a porta de um Postgres
+# instalado na máquina, e a colisão derrubaria o `up` de quem avalia. Os
+# serviços continuam falando com os bancos pelo hostname da rede do Compose, em
+# 5432 — publicar porta não muda nada para eles.
+#
+# As demais portas publicadas são 8080 (gateway), 8090 (kafbat-ui) e 8025
+# (mailpit).
 #
 # O PGDATA do Postgres 18 é /var/lib/postgresql/18/docker, e não mais
 # /var/lib/postgresql/data como nas versões anteriores — por isso o volume monta
@@ -46,6 +53,8 @@ services:
     environment:
       <<: *postgres-env
       POSTGRES_DB: scheduling
+    ports:
+      - "${SCHEDULING_DB_PORT:-5434}:5432"
     volumes:
       - scheduling-db-data:/var/lib/postgresql
 
@@ -54,16 +63,18 @@ services:
     environment:
       <<: *postgres-env
       POSTGRES_DB: identity
+    ports:
+      - "${IDENTITY_DB_PORT:-5433}:5432"
     volumes:
       - identity-db-data:/var/lib/postgresql
 
-  # Porta no host só neste banco: pgAdmin e o history rodando na máquina.
-  # Os outros Postgres continuam só na rede do Compose.
   history-db:
     <<: *postgres-common
     environment:
       <<: *postgres-env
       POSTGRES_DB: history
+    ports:
+      - "${HISTORY_DB_PORT:-5435}:5432"
     volumes:
       - history-db-data:/var/lib/postgresql
 
@@ -72,6 +83,8 @@ services:
     environment:
       <<: *postgres-env
       POSTGRES_DB: notification
+    ports:
+      - "${NOTIFICATION_DB_PORT:-5436}:5432"
     volumes:
       - notification-db-data:/var/lib/postgresql
 
