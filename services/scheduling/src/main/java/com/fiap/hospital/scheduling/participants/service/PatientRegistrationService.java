@@ -3,6 +3,7 @@ package com.fiap.hospital.scheduling.participants.service;
 import com.fiap.hospital.scheduling.outbox.Aggregate;
 import com.fiap.hospital.scheduling.outbox.OutboxEventWriter;
 import com.fiap.hospital.scheduling.participants.domain.Patient;
+import com.fiap.hospital.scheduling.participants.repository.DoctorRepository;
 import com.fiap.hospital.scheduling.participants.repository.PatientRepository;
 import java.time.Instant;
 import java.util.UUID;
@@ -20,13 +21,16 @@ public class PatientRegistrationService {
     private static final String ROLE = "PATIENT";
 
     private final PatientRepository patientRepository;
+    private final DoctorRepository doctorRepository;
     private final OutboxEventWriter outboxEventWriter;
 
     public PatientRegistrationService(
         PatientRepository patientRepository,
+        DoctorRepository doctorRepository,
         OutboxEventWriter outboxEventWriter
     ) {
         this.patientRepository = patientRepository;
+        this.doctorRepository = doctorRepository;
         this.outboxEventWriter = outboxEventWriter;
     }
 
@@ -42,6 +46,21 @@ public class PatientRegistrationService {
             throw new ResponseStatusException(
                 HttpStatus.CONFLICT,
                 "tax identifier already registered"
+            );
+        }
+
+        // A checagem cruzada nao tem UNIQUE por tras: patient e doctor sao tabelas
+        // distintas e nao existe constraint que atravesse as duas, entao aqui o pre-check
+        // e a defesa inteira. A corrida entre ele e o commit fica descoberta: dois
+        // cadastros simultaneos do mesmo CPF, um como paciente e outro como medico,
+        // ainda passam. Nesse caso o identity descarta o segundo evento (uma conta por
+        // CPF) e sobra um participante orfao — e essa a ultima linha que restou.
+        // Fechar a corrida de verdade exigiria promover pessoa a agregado proprio, que
+        // e exatamente o que o ADR-0015 recusou.
+        if (doctorRepository.existsByTaxIdentifier(taxIdentifier)) {
+            throw new ResponseStatusException(
+                HttpStatus.CONFLICT,
+                "tax identifier already registered as doctor"
             );
         }
 

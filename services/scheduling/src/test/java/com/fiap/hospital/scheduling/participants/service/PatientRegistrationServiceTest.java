@@ -43,6 +43,9 @@ class PatientRegistrationServiceTest {
     private PatientRepository patientRepository;
 
     @Autowired
+    private DoctorRegistrationService doctorRegistrationService;
+
+    @Autowired
     private JdbcClient jdbcClient;
 
     @Autowired
@@ -160,5 +163,53 @@ class PatientRegistrationServiceTest {
             .isInstanceOf(ResponseStatusException.class)
             .extracting("statusCode")
             .isEqualTo(HttpStatus.CONFLICT);
+    }
+
+    // Espelho do cross-check do lado do medico, e esta rota e publica: quem ja e medico
+    // entrava como paciente com 201 e o identity descartava a segunda conta, deixando um
+    // participante orfao que a FK de appointment continua aceitando.
+    @Test
+    void register_rejects_tax_identifier_already_registered_as_doctor_with_409() {
+        String taxIdentifier = nextCpf();
+
+        doctorRegistrationService.register(
+            taxIdentifier,
+            "CRM-SP " + nextCpf(),
+            "Cardiologia",
+            "Dr. Joao Mendes",
+            "joao.mendes@hospital.local"
+        );
+
+        assertThatThrownBy(() ->
+            service.register(
+                taxIdentifier,
+                "Maria Souza",
+                "maria.souza@hospital.local",
+                "+5511999999999"
+            )
+        )
+            .isInstanceOf(ResponseStatusException.class)
+            .extracting("statusCode")
+            .isEqualTo(HttpStatus.CONFLICT);
+
+        assertThat(
+            jdbcClient
+                .sql(
+                    "SELECT count(*) FROM participants.patient WHERE tax_identifier = :taxIdentifier"
+                )
+                .param("taxIdentifier", taxIdentifier)
+                .query(Long.class)
+                .single()
+        ).isEqualTo(0L);
+
+        assertThat(
+            jdbcClient
+                .sql(
+                    "SELECT count(*) FROM public.outbox_events WHERE type = 'PatientRegistered' AND envelope LIKE :pattern"
+                )
+                .param("pattern", "%" + taxIdentifier + "%")
+                .query(Long.class)
+                .single()
+        ).isEqualTo(0L);
     }
 }

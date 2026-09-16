@@ -8,6 +8,7 @@ import static org.mockito.Mockito.when;
 
 import com.fiap.hospital.scheduling.outbox.OutboxEventWriter;
 import com.fiap.hospital.scheduling.participants.domain.Patient;
+import com.fiap.hospital.scheduling.participants.repository.DoctorRepository;
 import com.fiap.hospital.scheduling.participants.repository.PatientRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -24,12 +25,16 @@ class PatientRegistrationServiceConflictTest {
     private PatientRepository patientRepository;
 
     @Mock
+    private DoctorRepository doctorRepository;
+
+    @Mock
     private OutboxEventWriter outboxEventWriter;
 
     @Test
     void uniqueViolationOnFlushBecomesConflictAndSkipsOutbox() {
         PatientRegistrationService service = new PatientRegistrationService(
             patientRepository,
+            doctorRepository,
             outboxEventWriter
         );
 
@@ -59,6 +64,7 @@ class PatientRegistrationServiceConflictTest {
     void integrityViolationOutsideThePatientInsertIsNotTranslatedIntoConflict() {
         PatientRegistrationService service = new PatientRegistrationService(
             patientRepository,
+            doctorRepository,
             outboxEventWriter
         );
 

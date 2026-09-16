@@ -7,14 +7,14 @@ import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
 public record RegisterPatientRequest(
-    @Schema(description = "CPF, sem pontuação", example = "39053344705")
+    @Schema(description = "CPF, sem pontuação", example = "12345678909")
     @NotBlank
     @Pattern(regexp = "\\d{11}", message = "must be 11 digits")
     String taxIdentifier,
 
-    @Schema(example = "Marcos Vieira") @NotBlank @Size(max = 150) String name,
+    @Schema(example = "Ana Ribeiro") @NotBlank @Size(max = 150) String name,
 
-    @Schema(example = "marcos.vieira@exemplo.com")
+    @Schema(example = "ana.ribeiro@exemplo.com")
     @NotBlank
     @Email
     @Size(max = 150)

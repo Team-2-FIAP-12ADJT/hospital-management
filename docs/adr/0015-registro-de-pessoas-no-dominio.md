@@ -74,6 +74,21 @@ A separação por schemas não protege nada: nada impede o código de agenda de
 consultar `participants` direto. Ela sinaliza a fronteira e deixa a linha de
 extração desenhada — é convenção, não salvaguarda.
 
-O `UNIQUE` de CPF é por tabela. Alguém que seja médico e paciente teria dois
-cadastros e duas contas; resolver isso exigiria promover pessoa a agregado
-próprio, o que recria a fronteira que esta decisão eliminou.
+O `UNIQUE` de CPF é por tabela, e o que isso produzia não eram dois cadastros com
+duas contas — era pior. O `identity` tem `uk_users_tax_identifier` e uma única
+coluna `role`: uma conta por CPF, com um papel só. Quem já era paciente entrava
+como médico com `201`, o `identity` recusava o segundo evento de pessoa e apenas
+registrava o descarte em log, e sobrava uma linha em `participants.doctor` sem
+conta, sem e-mail de ativação e sem meio de autenticar. A FK de `appointment`
+aceita essa linha, então dava para agendar consulta com um médico que não existe
+como usuário — e o cliente, que recebeu `201`, não tinha como saber.
+
+O registro passou a fazer a checagem cruzada: `DoctorRegistrationService` recusa
+CPF que já é paciente e `PatientRegistrationService` recusa CPF que já é médico,
+ambos com `409`. É pre-check e nada mais, porque não existe `UNIQUE` que atravesse
+duas tabelas: a janela entre a consulta e o commit continua aberta, e dois
+cadastros simultâneos do mesmo CPF em papéis diferentes ainda passam. O descarte
+do `identity` segue sendo a última linha para esse caso. Fechar a janela de
+verdade exigiria promover pessoa a agregado próprio, o que recria a fronteira que
+esta decisão eliminou — e continua não valendo o preço para uma corrida que só
+aparece em cadastro concorrente do mesmo CPF.

@@ -43,6 +43,9 @@ class DoctorRegistrationServiceTest {
     private DoctorRepository doctorRepository;
 
     @Autowired
+    private PatientRegistrationService patientRegistrationService;
+
+    @Autowired
     private JdbcClient jdbcClient;
 
     @Autowired
@@ -178,5 +181,53 @@ class DoctorRegistrationServiceTest {
             .isInstanceOf(ResponseStatusException.class)
             .extracting("statusCode")
             .isEqualTo(HttpStatus.CONFLICT);
+    }
+
+    // O CPF so e unico dentro da propria tabela: doctor e patient tem constraints
+    // separadas, entao quem ja e paciente entrava como medico com 201 e o identity
+    // depois descartava a segunda conta, deixando o medico sem usuario para autenticar.
+    @Test
+    void register_rejects_tax_identifier_already_registered_as_patient_with_409() {
+        String taxIdentifier = nextCpf();
+
+        patientRegistrationService.register(
+            taxIdentifier,
+            "Maria Souza",
+            "maria.souza@hospital.local",
+            "+5511999999999"
+        );
+
+        assertThatThrownBy(() ->
+            service.register(
+                taxIdentifier,
+                "CRM-SP " + nextCpf(),
+                "Cardiologia",
+                "Dra. Nao Permitida",
+                "nao.permitida@hospital.local"
+            )
+        )
+            .isInstanceOf(ResponseStatusException.class)
+            .extracting("statusCode")
+            .isEqualTo(HttpStatus.CONFLICT);
+
+        assertThat(
+            jdbcClient
+                .sql(
+                    "SELECT count(*) FROM participants.doctor WHERE tax_identifier = :taxIdentifier"
+                )
+                .param("taxIdentifier", taxIdentifier)
+                .query(Long.class)
+                .single()
+        ).isEqualTo(0L);
+
+        assertThat(
+            jdbcClient
+                .sql(
+                    "SELECT count(*) FROM public.outbox_events WHERE type = 'DoctorRegistered' AND envelope LIKE :pattern"
+                )
+                .param("pattern", "%" + taxIdentifier + "%")
+                .query(Long.class)
+                .single()
+        ).isEqualTo(0L);
     }
 }
